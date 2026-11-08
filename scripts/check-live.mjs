@@ -10,6 +10,9 @@ assert.ok(native.length, 'The service has at least one configured native agent')
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=metal'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
 const errors = []; page.on('pageerror', (error) => errors.push(error.message));
+const network = [];
+page.on('response', (response) => { if (new URL(response.url()).pathname.startsWith('/api/')) network.push({ path: new URL(response.url()).pathname, status: response.status() }); });
+await mkdir('.scratch/qa', { recursive: true });
 try {
   await page.goto(origin + '/?mode=live#system');
   const start = page.locator('.mc-start'); await start.waitFor();
@@ -23,7 +26,11 @@ try {
     await page.getByLabel('Live demo access key', { exact: true }).fill((await readFile(process.env.DARKMATTER_LIVE_ACCESS_FILE, 'utf8')).trim());
     await page.getByRole('button', { name: 'Unlock and run', exact: true }).click();
   }
-  assert.equal((await created).status(), 202);
+  const accepted = await created;
+  assert.equal(accepted.status(), 202);
+  const run = await accepted.json();
+  await writeFile('.scratch/qa/live-started.json', JSON.stringify({ origin, ...run }, null, 2));
+  console.log(`Live browser run started: ${run.id}`);
   await page.waitForFunction(() => document.querySelector('.mc-status')?.textContent?.startsWith('Live run finished'), undefined, { timeout: 360000 });
   await mkdir('.scratch/qa', { recursive: true });
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: '↓ Export trace', exact: true }).click();
@@ -39,4 +46,10 @@ try {
     agents: replies.map((event) => ({ agent: event.agent, address: event.artifact.provenance.address, artifact: event.artifact.id })),
     missingAgents: config.agents.filter((agent) => !agent.configured).map((agent) => agent.id), errors }, null, 2));
   console.log(`Run live passed: ${replies.map((event) => event.agent).join(', ')} returned actual Agentverse replies. Evidence is in .scratch/qa/.`);
+} catch (error) {
+  const state = await page.locator('.mc-workspace').innerText().catch(() => 'Workspace unavailable');
+  await writeFile('.scratch/qa/live-failure.json', JSON.stringify({ state, network, errors }, null, 2));
+  await page.screenshot({ path: '.scratch/qa/live-failure.png', fullPage: true }).catch(() => {});
+  console.error('Live browser diagnostic:', JSON.stringify({ status: await page.locator('.mc-status').textContent().catch(() => ''), network, errors }));
+  throw error;
 } finally { await browser.close(); }

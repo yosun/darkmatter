@@ -40,7 +40,7 @@ Open **[Run live](https://darkmatter.wom.quest/?mode=live#system)**, or use [the
 For local use, fill in the ignored `.env` with `FETCH_ASI_API` and each agent’s address and endpoint, then restart `npm run dev`. Native AI3D endpoints are detected automatically; other native endpoints need `DARKMATTER_{ROLE}_TRANSPORT=agentverse`. Keep all keys server-side.
 
 - **Ebert needs a video.** Paste a public HTTPS video URL into the workspace to request a critique. Without one, he returns his actual input instructions. A still image or 3D manifest is never passed off as a film.
-- **Lucas receives the scene and prior replies.** His live output is retained as a report. The current test asks for an actual next action and required inputs; it does not approve new generation or claim a repaired world.
+- **Lucas receives the scene and prior replies.** His live output is retained as a report. The current test asks for a brief response, one next action and its required input. Asset investigation and generation are deferred so the reply can fit the planner’s waiting window.
 - **Account access stays private.** If Lucas requests account setup and `AI3D_API_KEY` is configured, the server obtains a fresh AI3D connection form, submits the key over HTTPS and completes the confirmation with the same agent. The key never enters chat. Agent chat and video reviews can consume credits; generation quotes remain unapproved.
 - **Public live calls require a separate demo access key.** The owner’s release setup keeps this in `.scratch/runtime/live-access.key`. Enter it once to unlock a 24-hour browser session. Replay and manual 3D exploration remain public.
 

@@ -21,7 +21,7 @@ function nativeMessage({ agent, brief, instruction, context, videoUrl, videoMode
   const compact = { ...(videoUrl ? { videoUrl } : {}), artifacts: context.artifacts.slice(-12).map((artifact) => ({ ...artifact,
     url: artifact.url?.startsWith('/') ? new URL(artifact.url, publicOrigin).href : artifact.url, text: artifact.text?.slice(0, 6000) })),
     findings: context.findings.slice(-12), messages: context.messages.slice(-8).map((message) => ({ ...message, text: message.text?.slice(0, 2000) })) };
-  return `DARKMATTER / ${agent}\nCreative brief: ${brief}\nTask: ${instruction}\nThe existing Corgaroo scene is supplied as context. Explain your actual next action and required inputs. Do not claim to have generated, repaired or inspected assets unless you actually did. Do not submit a new billable generation, link an account or approve a quote in this test. If a required input or approval is missing, say so.\nShared context:\n${JSON.stringify(compact).slice(0, 30000)}`;
+  return `DARKMATTER / ${agent}\nThis is a brief live demo. Prioritize low latency and reply in at most 100 words. Acknowledge the previous agent's response and the supplied scene, then state one next action and its required input. Explain the task; do not execute it yet. Do not call tools, fetch assets, list model catalogs or prices, generate, repair, link an account, or approve quotes in this test. Do not claim inspection or completed work.\nCreative brief: ${brief}\nNext task: ${instruction}\nShared context:\n${JSON.stringify(compact).slice(0, 30000)}`;
 }
 
 /** Return only a reply attributed to the exact configured agent in ASI's streamed task metadata. */

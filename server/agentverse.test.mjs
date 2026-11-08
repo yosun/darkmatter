@@ -33,6 +33,8 @@ test('native bridge merges partial stream updates and returns only the configure
   assert.deepEqual(outbound.agents, [address]);
   assert.match(outbound.messages[0].content, /https:\/\/darkmatter.wom.quest\/worlds\/corgi\/scene.json/);
   assert.match(outbound.messages[0].content, /"position":\[1,2,3\]/);
+  assert.match(outbound.messages[0].content, /at most 100 words/);
+  assert.match(outbound.messages[0].content, /Do not call tools, fetch assets/);
   assert.match(result.text, /Corgaroo 🪐/);
   assert.doesNotMatch(result.text, /Broker answer|Do not expose|fixture-asi|private-token/);
   assert.equal(result.provenance.address, address);
