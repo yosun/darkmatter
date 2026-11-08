@@ -1,0 +1,53 @@
+{
+  "schema": "wom-corgi-garden-demo/1",
+  "world": "mw2ofi0ta9503b69",
+  "capturedAt": "2026-11-08T01:22:06.844Z",
+  "sceneSha256": "ed0d87303389296a824a3f228c0eb3bf09fff963479d143d7d16a32d93ff7c28",
+  "generated": false,
+  "worldChanged": false,
+  "description": "Unmodified saved corgi garden, source photograph, camera and layer transforms. No new generation or repair.",
+  "assets": [
+    {
+      "file": "corgi-dog.spz",
+      "source": "/files/mw2ofi0ta9503b69/objects/corgi-dog/idol/model.ply.0df2d35e29d7f80fad41.web-v3.spz",
+      "sha256": "413b1cd4403acba72248fc84e999578c417cceea126c73fe287350081166f7b4",
+      "bytes": 3193537
+    },
+    {
+      "file": "red-vintage-bicycle.spz",
+      "source": "/files/mw2ofi0ta9503b69/objects/red-vintage-bicycle/idol/model.ply.22dfd50e293681d6931c.web-v3.spz",
+      "sha256": "b3d1ebbebd04ae20398e942109652d4eabbcc015b6a8458d7e7c882b9867f79b",
+      "bytes": 3463083
+    },
+    {
+      "file": "wooden-garden-bench.spz",
+      "source": "/files/mw2ofi0ta9503b69/objects/wooden-garden-bench/idol/model.ply.8a121679dba60546d111.web-v3.spz",
+      "sha256": "686084a28c0d7d650f614c0a46abebae5a4811ce262a2424ec66a563d2d2bb99",
+      "bytes": 3324806
+    },
+    {
+      "file": "potted-lemon-tree.spz",
+      "source": "/files/mw2ofi0ta9503b69/objects/potted-lemon-tree/idol/model.ply.1a307503f2ff7d6d08a5.web-v3.spz",
+      "sha256": "6ad3c968a2fb9a1111619dc5dfe8af75562d041099fffe58b831787b71c3ae08",
+      "bytes": 3423477
+    },
+    {
+      "file": "garden.spz",
+      "source": "/files/mw2ofi0ta9503b69/world/worldlabs2/splat-camera-frame-r2.spz",
+      "sha256": "fc2e74b9c7eb240d078051e396698873fff532aaafab898e0c6f646301ca8f26",
+      "bytes": 8679745
+    },
+    {
+      "file": "source.jpg",
+      "source": "/files/mw2ofi0ta9503b69/source.jpg",
+      "sha256": "a0b3044bfd634938d0684cee735814b8d7157d8f90c9709d8ccde6256ba1fe32",
+      "bytes": 291052
+    },
+    {
+      "file": "scene.json",
+      "sha256": "8f67b50abae62dfaeb15b3885b0909ed052e273272c1d0a95be224cf2f1a4ccc",
+      "bytes": 2511
+    }
+  ],
+  "packagedFor": "DARKMATTER"
+}

@@ -1,0 +1,35 @@
+.world-viewer { background: #11151a; border: 1px solid #393540; color: #e5e3e9; }
+.world-viewer button { border: 1px solid #3b3b43; background: #202128; border-radius: 3px; padding: 8px 10px; color: #c9c7cf; font: 500 10px/1.3 monospace; cursor: pointer; }
+.world-viewer button:disabled { opacity: .4; }
+.world-viewer button[aria-pressed='true'] { border-color: #d9ff5a; color: #d9ff5a; background: #d9ff5a0a; }
+.wv-top { display: flex; align-items: center; gap: 10px; padding: 14px 12px 10px; }
+.wv-top > div { display: grid; gap: 5px; margin-right: auto; }
+.wv-top strong { font-size: 13px; font-weight: 500; }
+.wv-pose-label { color: #939caa; font: 500 8px monospace; letter-spacing: .08em; }
+.wv-presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 12px; }
+.wv-presets button { padding: 7px 8px; font-size: 9px; }
+.wv-stage { position: relative; width: 100%; aspect-ratio: 3 / 2; background: #18231b; overflow: hidden; }
+.wv-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; outline-offset: -3px; }
+.wv-overlay { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: contain; opacity: .5; pointer-events: none; }
+.wv-loading { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; margin: 0; padding: 20px; background: #142019e8; color: #c9d6c8; font: 500 12px/1.5 monospace; text-align: center; pointer-events: none; }
+.wv-loading a { color: #d9ff5a; pointer-events: auto; }
+.world-viewer [hidden] { display: none !important; }
+.wv-tools, .wv-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 12px 12px 0; }
+.wv-opacity { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #93919d; font: 500 9px monospace; }
+.wv-opacity input { width: 70px; accent-color: #d9ff5a; }
+.wv-hint { margin: 11px 12px 0; color: #7e8991; font: 400 9px/1.6 monospace; }
+.wv-actions { border-top: 1px solid #2c3038; margin-top: 13px; }
+.wv-actions .wv-send { background: #d9ff5a; border-color: #d9ff5a; color: #17200c; }
+.wv-feedback { min-height: 12px; color: #aab695; margin: 9px 12px 12px; font: 400 10px/1.6 monospace; }
+.world-viewer:fullscreen { padding: 12px; overflow: auto; }
+.world-viewer:fullscreen .wv-stage { width: min(100%, calc((100svh - 230px) * 1.5)); margin: auto; }
+.world-viewer:fullscreen .wv-presets, .world-viewer:fullscreen .wv-tools, .world-viewer:fullscreen .wv-actions { justify-content: center; }
+@media (max-width: 560px) {
+  .wv-top { padding: 10px 8px; gap: 6px; }
+  .wv-top strong { font-size: 11px; }
+  .wv-top button { padding: 7px; font-size: 8px; }
+  .wv-presets { padding-inline: 8px; gap: 5px; }
+  .wv-tools, .wv-actions { padding-inline: 8px; }
+  .wv-opacity { margin-left: 0; }
+  .wv-hint { font-size: 8px; }
+}

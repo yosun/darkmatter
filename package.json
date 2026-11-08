@@ -4,11 +4,27 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:server": "node --env-file-if-exists=.env server/index.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server/*.test.mjs",
+    "test:viewer": "node scripts/check-viewer.mjs",
+    "capture:world": "node scripts/check-viewer.mjs --capture",
+    "eval:agents": "node scripts/evaluate-agents.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs --history",
+    "preview": "vite preview",
+    "start": "node --env-file-if-exists=.env server/index.mjs"
   },
   "devDependencies": {
+    "@types/three": "0.183.1",
+    "playwright-core": "1.64.1",
+    "typescript": "^7.0.2",
     "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@sparkjsdev/spark": "2.4.0",
+    "three": "0.187.0"
   }
 }

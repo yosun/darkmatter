@@ -5,4 +5,5 @@ document.body.className = 'page-darkmatter';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('DARKMATTER app root is missing.');
-renderDarkmatter(root);
+const dispose = renderDarkmatter(root);
+addEventListener('pagehide', dispose, { once: true });

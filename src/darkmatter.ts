@@ -1,5 +1,7 @@
 import './darkmatter.css';
 import { h } from './dom.ts';
+import { createMission } from './mission.ts';
+import { MEDIA } from '../shared/scenario.mjs';
 
 type AgentId = 'ebert' | 'spielberg' | 'lucas' | 'bohr';
 
@@ -12,12 +14,6 @@ interface DarkmatterAgent {
   summary: string;
   output: string;
   accent: string;
-}
-
-interface LoopStep {
-  agent: AgentId;
-  label: string;
-  detail: string;
 }
 
 const agents: DarkmatterAgent[] = [
@@ -43,209 +39,46 @@ const agents: DarkmatterAgent[] = [
   },
 ];
 
-const loopSteps: LoopStep[] = [
-  { agent: 'spielberg', label: 'Generate the opening cut', detail: 'A visible film emerges from the prompt and source material.' },
-  { agent: 'ebert', label: 'Interrogate the cut', detail: 'Story, continuity, pacing, and visual coherence become revision constraints.' },
-  { agent: 'spielberg', label: 'Refine the film', detail: 'The next cut incorporates the critique before the world is reconstructed.' },
-  { agent: 'lucas', label: 'Lift film into 3D', detail: 'Frames become a scene with objects, depth, geometry, and a camera.' },
-  { agent: 'bohr', label: 'Inspect the unseen', detail: 'Orbital views move beyond the hero frame and reveal hidden surface failures.' },
-  { agent: 'bohr', label: 'Prepare the repair', detail: 'Evidence is attributed and a bounded, reversible repair candidate is formed.' },
-  { agent: 'spielberg', label: 'Shoot recovered angles', detail: 'The repaired world returns to the filmmaker as new camera possibility.' },
-  { agent: 'ebert', label: 'Close the loop', detail: 'The new material is critiqued again. The system is ready for another pass.' },
-];
-
 const orbitFrames = [
   {
-    angle: '000°', ring: 'Equator / source-facing', status: 'No defect recorded', tone: 'clear',
-    note: 'The source-facing view looks coherent. A single frame would stop here.',
-    src: '/agent-studies/object-orbits-2026-11-07/images/3c34a21df7a4ec55347a86ee64c2347a7a0b7f746398963212dd145dd935fd83.jpg',
+    angle: '000°', ring: 'Corgaroo / front', status: 'Starting view', tone: 'clear',
+    note: 'Meet Corgaroo inside the reconstructed garden. This camera is only the beginning of inspection.',
+    src: MEDIA.front,
   },
   {
-    angle: '120°', ring: 'Equator / far side', status: 'Major smear recorded', tone: 'alert',
-    note: 'At 120°, the tail stretches into a thin sheet—a failure hidden from the opening camera.',
-    src: '/agent-studies/object-orbits-2026-11-07/images/bd94f1004d0c8d8757eac5eeaa908fa9d791bf226a31fbb584f633174f48e334.jpg',
+    angle: '120°', ring: 'Corgaroo / far side', status: 'Inspect unseen surfaces', tone: 'alert',
+    note: 'Isolate the corgi and inspect the surface the source camera never saw. Open the native viewer to move between these angles yourself.',
+    src: MEDIA.side,
   },
   {
-    angle: '180°', ring: 'Equator / reverse', status: 'Major smear confirmed', tone: 'alert',
-    note: 'The reverse orbital confirms the defect persists across neighboring viewpoints.',
-    src: '/agent-studies/object-orbits-2026-11-07/images/015b15acaf5a529189e46bb34e7c71ae47242dc61e923a6222753e9f8a61dbca.jpg',
+    angle: '180°', ring: 'Corgaroo / reverse', status: 'Complete the orbit', tone: 'alert',
+    note: 'The reverse view completes the inspection set. A live Bohr agent will turn located defects into a bounded repair request.',
+    src: MEDIA.back,
   },
 ];
-
-const agentById = (id: AgentId) => agents.find((agent) => agent.id === id)!;
 
 function mark(label: string) {
   return h('span.dm-mark', { 'aria-hidden': 'true' }, h('span', label), h('i'), h('i'));
 }
 
-function agentButton(agent: DarkmatterAgent, onSelect: (id: AgentId) => void) {
-  return h('button.dm-agent-button', {
-    type: 'button', dataset: { agent: agent.id },
-    style: { '--agent-accent': agent.accent } as Partial<CSSStyleDeclaration>,
-    onclick: () => onSelect(agent.id),
-  }, h('span.dm-agent-index', agent.index), h('span.dm-agent-name', agent.name), h('span.dm-agent-action', agent.action));
-}
-
 export function renderDarkmatter(root: HTMLElement): () => void {
-  const timers = new Set<number>();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  let selected: AgentId = 'spielberg';
-  let stepIndex = 0;
-  let running = false;
-  let completed = false;
-
-  const runButton = h('button.dm-run', { type: 'button' }, h('span.dm-run-icon', '↗'), h('span', 'Run the loop'));
-  const agentHeading = h('h3', 'Spielberg');
-  const agentRole = h('p.dm-console-role', 'The filmmaker · Generate');
-  const agentSummary = h('p.dm-console-summary', agentById(selected).summary);
-  const agentOutput = h('span.dm-output-value', agentById(selected).output);
-  const stepNumber = h('span', '01');
-  const stepLabel = h('strong', loopSteps[0].label);
-  const stepDetail = h('span', loopSteps[0].detail);
-  const progress = h('i');
-  const announcement = h('p.dm-sr-only', { role: 'status', 'aria-live': 'polite' }, 'Demo ready.');
-  const loopShell = h('div.dm-loop-shell');
-  const loopAgentButtons: HTMLButtonElement[] = [];
-  const dossierButtons: HTMLButtonElement[] = [];
-
-  const clearTimers = () => {
-    for (const timer of timers) window.clearTimeout(timer);
-    timers.clear();
-  };
-
-  const updateAgent = (id: AgentId, announce = true) => {
-    selected = id;
-    const agent = agentById(id);
-    loopShell.dataset.activeAgent = id;
-    loopShell.style.setProperty('--active-agent', agent.accent);
-    agentHeading.textContent = agent.name;
-    agentRole.textContent = `${agent.role} · ${agent.action}`;
-    agentSummary.textContent = agent.summary;
-    agentOutput.textContent = agent.output;
-    for (const button of [...loopAgentButtons, ...dossierButtons]) {
-      const active = button.dataset.agent === id;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-pressed', String(active));
-    }
-    if (announce) announcement.textContent = `${agent.name} selected. ${agent.summary}`;
-  };
-
-  const paintStep = (index: number) => {
-    const step = loopSteps[index];
-    updateAgent(step.agent, false);
-    stepNumber.textContent = String(index + 1).padStart(2, '0');
-    stepLabel.textContent = step.label;
-    stepDetail.textContent = step.detail;
-    progress.style.width = `${((index + 1) / loopSteps.length) * 100}%`;
-    loopShell.dataset.step = String(index + 1);
-    announcement.textContent = `Step ${index + 1} of ${loopSteps.length}. ${agentById(step.agent).name}: ${step.label}.`;
-  };
-
-  const paintRunButton = () => {
-    runButton.classList.toggle('is-running', running);
-    runButton.querySelector('span:last-child')!.textContent = running ? 'Pause the loop' : completed ? 'Run it again' : 'Run the loop';
-    runButton.querySelector('.dm-run-icon')!.textContent = running ? 'Ⅱ' : '↗';
-    runButton.setAttribute('aria-pressed', String(running));
-  };
-
-  const queueNext = () => {
-    const timer = window.setTimeout(() => {
-      timers.delete(timer);
-      if (!running) return;
-      if (stepIndex >= loopSteps.length - 1) {
-        running = false;
-        completed = true;
-        loopShell.dataset.runState = 'complete';
-        paintRunButton();
-        announcement.textContent = 'Demo loop complete. Ebert has closed the critique cycle.';
-        return;
-      }
-      stepIndex += 1;
-      paintStep(stepIndex);
-      queueNext();
-    }, reducedMotion.matches ? 360 : 1350);
-    timers.add(timer);
-  };
-
-  const pauseLoop = () => {
-    running = false;
-    clearTimers();
-    loopShell.dataset.runState = completed ? 'complete' : 'paused';
-    paintRunButton();
-    announcement.textContent = `Demo paused at step ${stepIndex + 1}.`;
-  };
-
-  const startLoop = () => {
-    if (running) return pauseLoop();
-    if (completed || stepIndex >= loopSteps.length - 1) {
-      stepIndex = 0;
-      completed = false;
-    }
-    running = true;
-    loopShell.dataset.runState = 'running';
-    paintStep(stepIndex);
-    paintRunButton();
-    queueNext();
-  };
-
-  runButton.addEventListener('click', startLoop);
-
-  const selectAgent = (id: AgentId) => {
-    if (running) pauseLoop();
-    updateAgent(id);
-  };
-
-  const loopAgents = h('div.dm-loop-agents', { 'aria-label': 'Select an agent' });
-  for (const agent of agents) {
-    const button = agentButton(agent, selectAgent);
-    loopAgentButtons.push(button);
-    loopAgents.append(button);
-  }
-
-  loopShell.append(
-    h('div.dm-loop-topbar',
-      h('div', h('span.dm-live-dot'), h('span', 'Demo trace'), h('em', 'integration pending')),
-      h('div', h('span', 'loop'), h('strong', 'DM–001'))),
-    h('div.dm-loop-body',
-      h('div.dm-stage',
-        h('img.dm-stage-image', {
-          src: '/agent-studies/scene-repair-2026-11-07/images/c05e3430624feb4df94eeaefeb96939d76adef5295d0c52f74686cb658723744.jpg',
-          alt: 'Generated 3D garden scene with a dog, bicycle, bench, and lemon tree',
-        }),
-        h('div.dm-stage-grid'),
-        h('div.dm-stage-vignette'),
-        h('div.dm-orbit-system', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('span.dm-orbit-probe')),
-        h('div.dm-stage-readout', h('span', 'WORLD / GARDEN–01'), h('span', 'ORBITAL FIELD ACTIVE')),
-        loopAgents,
-        h('div.dm-stage-center', h('span', '3D'), h('strong', 'WORLD'), h('small', 'revision 06'))),
-      h('aside.dm-agent-console', { 'aria-label': 'Selected agent' },
-        h('div.dm-console-head', mark('AGENT'), h('span.dm-agent-state', 'standby')),
-        h('div.dm-agent-glyph', { 'aria-hidden': 'true' }, h('span', '●'), h('i'), h('i')),
-        agentHeading, agentRole, agentSummary,
-        h('div.dm-console-output', h('span', 'Returns'), agentOutput))),
-    h('div.dm-loop-controls',
-      runButton,
-      h('div.dm-step-copy', stepNumber, h('p', stepLabel, stepDetail)),
-      h('div.dm-progress', { 'aria-hidden': 'true' }, progress),
-      h('span.dm-step-total', `/ ${String(loopSteps.length).padStart(2, '0')}`)),
-    announcement,
-  );
+  const mission = createMission();
 
   const dossiers = h('div.dm-dossiers');
   for (const agent of agents) {
     const button = h('button.dm-dossier', {
       type: 'button', dataset: { agent: agent.id }, 'aria-pressed': 'false',
       style: { '--agent-accent': agent.accent } as Partial<CSSStyleDeclaration>,
-      onclick: () => { selectAgent(agent.id); loopShell.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'center' }); },
+      onclick: () => { mission.selectAgent(agent.id); mission.element.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'center' }); },
     },
     h('span.dm-dossier-index', agent.index),
     h('span.dm-dossier-main', h('strong', agent.name), h('em', agent.role)),
     h('span.dm-dossier-action', agent.action), h('span.dm-dossier-arrow', '↗'));
-    dossierButtons.push(button);
     dossiers.append(button);
   }
 
-  const orbitImage = h('img', { src: orbitFrames[0].src, alt: 'Source-facing orbital view of a reconstructed golden retriever' });
+  const orbitImage = h('img', { src: orbitFrames[0].src, alt: 'Front view of Corgaroo in the reconstructed 3D garden' });
   const orbitAngle = h('strong', orbitFrames[0].angle);
   const orbitRing = h('span', orbitFrames[0].ring);
   const orbitStatus = h('span.dm-orbit-status', { dataset: { tone: orbitFrames[0].tone } }, orbitFrames[0].status);
@@ -254,7 +87,7 @@ export function renderDarkmatter(root: HTMLElement): () => void {
   const setOrbit = (index: number) => {
     const frame = orbitFrames[index];
     orbitImage.src = frame.src;
-    orbitImage.alt = `${frame.ring} recorded view of the reconstructed golden retriever`;
+    orbitImage.alt = `${frame.ring} captured from the native 3D corgi viewer`;
     orbitAngle.textContent = frame.angle;
     orbitRing.textContent = frame.ring;
     orbitStatus.textContent = frame.status;
@@ -280,29 +113,36 @@ export function renderDarkmatter(root: HTMLElement): () => void {
   });
 
   const compareAfter = h('div.dm-compare-after', h('img', {
-    src: '/agent-studies/scene-repair-2026-11-07/images/b7009493bf855ca0cc63976eba068bc4fb27ad24d01cc9093836281e81a32d2d.jpg',
-    alt: 'Candidate repaired novel-angle garden render',
-  }), h('span', 'Candidate'));
+    src: MEDIA.reconstruction,
+    alt: 'Saved corgi garden reconstruction at its original camera',
+  }), h('span', '3D reconstruction'));
   const compareLine = h('i.dm-compare-line');
-  const compareValue = h('span', '52% candidate');
+  const compareValue = h('span', '38% revealed');
+  const showBefore = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => setCompare(0) }, 'Source photograph');
+  const showCandidate = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => setCompare(100) }, '3D reconstruction');
+  function setCompare(value: number) {
+    compareRange.value = String(value);
+    compareAfter.style.clipPath = `inset(0 ${100 - value}% 0 0)`;
+    compareLine.style.left = `${value}%`;
+    compareValue.textContent = `${value}% revealed`;
+    showBefore.setAttribute('aria-pressed', String(value === 0));
+    showCandidate.setAttribute('aria-pressed', String(value === 100));
+  }
   const compareRange = h('input', {
-    type: 'range', min: '0', max: '100', value: '52',
-    'aria-label': 'Reveal candidate repair over the recorded before frame',
+    type: 'range', min: '0', max: '100', value: '38',
+    'aria-label': 'Reveal the corgi 3D reconstruction over its source photograph',
     oninput: (event: Event) => {
-      const value = (event.currentTarget as HTMLInputElement).value;
-      compareAfter.style.clipPath = `inset(0 ${100 - Number(value)}% 0 0)`;
-      compareLine.style.left = `${value}%`;
-      compareValue.textContent = `${value}% candidate`;
+      setCompare(Number((event.currentTarget as HTMLInputElement).value));
     },
   });
 
   const page = h('main.darkmatter-page',
     h('header.dm-nav',
-      h('a.dm-brand', { href: '/darkmatter', 'aria-label': 'DARKMATTER home' },
+      h('a.dm-brand', { href: '/', 'aria-label': 'DARKMATTER home' },
         h('span.dm-brand-sigil', { 'aria-hidden': 'true' }, h('i'), h('i')), h('strong', 'DARKMATTER')),
       h('nav', { 'aria-label': 'DARKMATTER navigation' },
         h('a', { href: '#system' }, 'System'), h('a', { href: '#agents' }, 'Agents'), h('a', { href: '#evidence' }, 'Evidence')),
-      h('a.dm-nav-status', { href: '#system' }, h('span'), 'Loop offline')),
+      h('a.dm-nav-status', { href: '#system' }, h('span'), 'Mission control')),
 
     h('section.dm-hero', { 'aria-labelledby': 'darkmatter-title' },
       h('div.dm-hero-copy',
@@ -311,8 +151,8 @@ export function renderDarkmatter(root: HTMLElement): () => void {
         h('p.dm-thesis', 'Generative AI creates the visible ', h('strong', '3%'), '. ', h('span', 'We tackle the invisible 97%.' )),
         h('p.dm-hero-note', 'Four agents critique, generate, reconstruct, inspect, repair, and return the camera to the world. Then they do it again.'),
         h('div.dm-hero-actions',
-          h('a.dm-primary-link', { href: '#system' }, h('span', 'Enter the loop'), h('i', '↘')),
-          h('a.dm-text-link', { href: '#agents' }, 'Meet the four agents', h('span', '→')))),
+          h('a.dm-primary-link', { href: '#system' }, h('span', 'Watch agents collaborate'), h('i', '↘')),
+          h('a.dm-text-link', { href: '#system', onclick: () => void mission.exploreWorld() }, 'Explore Corgaroo in 3D', h('span', '→')))),
       h('div.dm-ratio', { 'aria-label': 'Three percent generation, ninety-seven percent critique, reconstruction, inspection, repair, and iteration' },
         h('div.dm-ratio-head', h('span', 'VISIBLE OUTPUT'), h('strong', '03%')),
         h('div.dm-ratio-field',
@@ -326,13 +166,13 @@ export function renderDarkmatter(root: HTMLElement): () => void {
       'GENERATE', h('span', '✦'), 'CRITIQUE', h('span', '✦'), 'RECONSTRUCT', h('span', '✦'), 'ORBIT', h('span', '✦'), 'REPAIR', h('span', '✦'), 'RESHOOT')),
 
     h('section.dm-system#system', { 'aria-labelledby': 'system-title' },
-      h('div.dm-section-head', h('div', mark('01 / CLOSED LOOP'), h('h2#system-title', 'One film. One world. No final frame.')),
-        h('p', 'This interface simulates the planned handoffs. The visual evidence below comes from recorded WOM orbital and repair studies. Agentverse endpoints will replace the demo trace as each agent comes online.')),
-      loopShell),
+      h('div.dm-section-head', h('div', mark('01 / COLLABORATION ROOM'), h('h2#system-title', 'Watch the work move between minds.')),
+        h('p', 'One brief becomes a shot, a critique, a world, evidence, and a new camera angle. Follow every agent’s contribution and the context it passes to the next.')),
+      mission.element),
 
     h('section.dm-agents#agents', { 'aria-labelledby': 'agents-title' },
       h('div.dm-section-head', h('div', mark('02 / AUTONOMOUS CAST'), h('h2#agents-title', 'Four names. Four disciplines. One shared artifact.')),
-        h('p', 'Each agent is independently callable. Together they move the work from generation to judgment, space, evidence, and back to the camera.')),
+        h('p', 'Call each role individually or run the shared loop. Their outputs become the next agent’s context, carrying the same creative work forward.')),
       dossiers),
     h('section.dm-handoff', { 'aria-label': 'Agent handoff sequence' },
       h('div', h('span', '01'), h('strong', 'FILM'), h('em', 'Spielberg creates')), h('i', '→'),
@@ -342,7 +182,7 @@ export function renderDarkmatter(root: HTMLElement): () => void {
 
     h('section.dm-evidence#evidence', { 'aria-labelledby': 'evidence-title' },
       h('div.dm-section-head', h('div', mark('03 / THE UNSEEN'), h('h2#evidence-title', 'A hero frame can hide a broken world.')),
-        h('p', 'Recorded evidence from the underlying 3D workflow demonstrates the inspection problem DARKMATTER is designed to automate.')),
+        h('p', 'One corgi garden, inspected from cameras beyond the source photograph. Every view below comes from the same saved 3D world.')),
       h('div.dm-orbit-evidence',
         h('div.dm-orbit-copy',
           h('p.dm-evidence-label', 'BOHR / ORBITAL INSPECTION'),
@@ -350,22 +190,24 @@ export function renderDarkmatter(root: HTMLElement): () => void {
           h('p', 'A plausible front view is not proof of a coherent object. Sample an orbital field and the hidden surface becomes testable.'),
           orbitTabs,
           h('div.dm-orbit-meta', h('div', orbitAngle, orbitRing), orbitStatus), orbitNote,
-          h('small', 'Recorded WOM object-orbit study · November 7, 2026')),
+          h('small', 'Corgaroo’s saved garden · native 3D camera captures')),
         h('figure.dm-orbit-frame', orbitImage,
           h('span.dm-frame-corner.dm-frame-corner-a'), h('span.dm-frame-corner.dm-frame-corner-b'),
-          h('figcaption', h('span', 'CAM / ORBIT–B'), h('span', 'OBJECT / GOLDEN RETRIEVER'))))),
+          h('figcaption', h('span', 'CAM / ORBIT–B'), h('span', 'OBJECT / CORGAROO'))))),
     h('section.dm-repair', { 'aria-labelledby': 'repair-title' },
-      h('div.dm-repair-copy', mark('04 / BOUNDED REPAIR'), h('h2#repair-title', 'Find it. Attribute it. Change only what failed.'),
-        h('p', 'Bohr turns a defect into evidence and a reversible repair candidate. The comparison shown here is recorded work—not a claim of an independently verified win.'),
+      h('div.dm-repair-copy', mark('04 / SOURCE CONTINUITY'), h('h2#repair-title', 'One photograph. A world beyond it.'),
+        h('p', 'Slide between Corgaroo’s source photograph and its reconstructed garden at the same camera. Then leave the frame in native 3D: inspect, choose a new shot, and hand its exact camera to Spielberg.'),
         h('ol', h('li', h('span', '01'), h('div', h('strong', 'Observe'), h('p', 'Capture the failing angle and the scene layers that produce it.'))),
           h('li', h('span', '02'), h('div', h('strong', 'Attribute'), h('p', 'Separate geometry defects from camera, background, or generation changes.'))),
           h('li', h('span', '03'), h('div', h('strong', 'Repair + verify'), h('p', 'Apply a bounded candidate and revisit every required view.'))))),
       h('div.dm-compare-wrap',
+        h('div.dm-compare-choices', showBefore, showCandidate),
         h('div.dm-compare',
-          h('img', { src: '/agent-studies/scene-repair-2026-11-07/images/bd55303ba59f925183f955b8c4548fe5f4e2c45cf6fbb0689a2a0842b990d95f.jpg', alt: 'Recorded before frame from a novel garden angle' }),
-          h('span.dm-before-label', 'Before'), compareAfter, compareLine),
-        h('div.dm-compare-control', h('span', 'Before'), compareRange, compareValue),
-        h('p', h('span.dm-candidate-dot'), ' Candidate repair · review status: not independently confirmed'))),
+          h('img', { src: MEDIA.opening, alt: 'Original source photograph of Corgaroo beside the bicycle, bench and lemon tree' }),
+          h('span.dm-before-label', 'Source photo'), compareAfter, compareLine),
+        h('div.dm-compare-control', h('span', 'Photo'), compareRange, compareValue),
+        h('p.dm-repair-explanation', h('strong', 'Same scene, same camera. '), 'Compare the silhouette, detail and placement; orbit to inspect what the photograph could not show.'),
+        h('p', h('span.dm-candidate-dot'), ' Saved reconstruction · live repair and verification are the next iteration'))),
 
     h('section.dm-stack', { 'aria-labelledby': 'stack-title' },
       h('div.dm-stack-intro', mark('05 / INFRASTRUCTURE'), h('h2#stack-title', 'Independent agents. Shared context. Observable handoffs.'),
@@ -383,18 +225,13 @@ export function renderDarkmatter(root: HTMLElement): () => void {
       h('a', { href: '#system' }, 'Run the DARKMATTER loop', h('span', '↗'))),
 
     h('footer.dm-footer',
-      h('a.dm-brand', { href: '/darkmatter' }, h('span.dm-brand-sigil', { 'aria-hidden': 'true' }, h('i'), h('i')), h('strong', 'DARKMATTER')),
+      h('a.dm-brand', { href: '/' }, h('span.dm-brand-sigil', { 'aria-hidden': 'true' }, h('i'), h('i')), h('strong', 'DARKMATTER')),
       h('p', 'Generative AI creates the visible 3%. We tackle the invisible 97%.'),
-      h('div', h('a', { href: '/#/' }, 'World of a Memory'), h('span', '© 2026'))),
+      h('div', h('a', { href: 'https://wom.quest/', target: '_blank', rel: 'noopener noreferrer' }, 'World of a Memory'), h('span', '© 2026'))),
   );
 
   root.append(page);
-  updateAgent(selected, false);
-  paintStep(0);
-  paintRunButton();
-
-  return () => {
-    clearTimers();
-    runButton.removeEventListener('click', startLoop);
-  };
+  setCompare(38);
+  if (new URLSearchParams(location.search).get('view') === '3d') void mission.exploreWorld();
+  return () => mission.dispose();
 }

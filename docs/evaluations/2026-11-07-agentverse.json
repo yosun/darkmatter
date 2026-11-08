@@ -1,0 +1,177 @@
+{
+  "schema": "darkmatter-public-agent-evaluation/1",
+  "date": "2026-11-07",
+  "timezone": "America/Los_Angeles",
+  "method": "Configured identities probed directly and through ASI:One planner. Exchanges are taken from streamed plan tasks with the exact configured agent address. ASI summaries and reasoning are omitted.",
+  "limitations": [
+    "This is a small capability and integration assessment, not a quality benchmark.",
+    "Agent claims about available models and pricing are not generation outcomes.",
+    "An accepted HTTP request is not evidence that a review or generation completed."
+  ],
+  "cases": [
+    {
+      "observedAt": "2026-11-08T02:53:15.049Z",
+      "role": "ebert",
+      "address": "agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg",
+      "configured": true,
+      "endpoint": "https://agents.ai3d.dev/ebert",
+      "identityMatched": true,
+      "nativeReadiness": 200,
+      "registry": {
+        "status": "active",
+        "protocols": [
+          "30a801ed3a83f9a0ff0a9f1e6fe958cb91da1fc2218b153df7b6cbf87bd33d62",
+          "736a7a16adb9b54d88d5bec006fa230c2ebc117bd7dd1332c5293ae41e3dbbed"
+        ],
+        "endpoints": [
+          {
+            "url": "https://agentverse.ai/v2/agents/proxy/submit",
+            "weight": 1
+          }
+        ]
+      },
+      "appAdapterContract": {
+        "status": 400,
+        "error": "not an envelope"
+      },
+      "live": {
+        "httpStatus": 200,
+        "elapsedMs": 31234,
+        "streamCompleted": true,
+        "finishReasons": [
+          "stop"
+        ],
+        "request": "Contact only @agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg; relay the following request to that exact Agentverse agent and report its reply. Do not substitute your own answer. Ask it to echo probe ID darkmatter-ebert-46779bca. You are being evaluated for DARKMATTER. No video is supplied. Do not invent a review or score. Explain your actual required media inputs, review outputs, and how a director should use your directives. Can you inspect and repair a 3D SPZ world directly? Distinguish capabilities from limitations. Do not generate or modify assets.",
+        "exchanges": [
+          {
+            "phase": "0",
+            "task": "0",
+            "status": "completed",
+            "agent": "agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg",
+            "reply": "Send me a video to review: a public https link to the video file, or an AI3D hosted link. Optionally add the generation prompt on its own line as `prompt: ...`, and `model: <model id>`. A review takes two to five minutes."
+          },
+          {
+            "phase": "1",
+            "task": "0",
+            "status": "completed",
+            "agent": "agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg",
+            "reply": "Send me a video to review: a public https link to the video file, or an AI3D hosted link. Optionally add the generation prompt on its own line as `prompt: ...`, and `model: <model id>`. A review takes two to five minutes."
+          },
+          {
+            "phase": "2",
+            "task": "0",
+            "status": "completed",
+            "agent": "agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg",
+            "reply": "Send me a video to review: a public https link to the video file, or an AI3D hosted link. Optionally add the generation prompt on its own line as `prompt: ...`, and `model: <model id>`. A review takes two to five minutes."
+          }
+        ]
+      }
+    },
+    {
+      "observedAt": "2026-11-08T02:53:15.049Z",
+      "role": "spielberg",
+      "address": null,
+      "configured": false,
+      "registry": null,
+      "appAdapterContract": null,
+      "live": null
+    },
+    {
+      "observedAt": "2026-11-08T02:53:15.049Z",
+      "role": "lucas",
+      "address": "agent1qg7m4zkf6k5j80lclwfg57ym7lsxeg9gafhgc092n98mqspgwczkwqsrpr7",
+      "configured": true,
+      "endpoint": "https://agents.ai3d.dev/agentverse",
+      "identityMatched": true,
+      "nativeReadiness": 200,
+      "registry": {
+        "status": "active",
+        "protocols": [
+          "25ffdb6b6a063e4e2cc6b7a3e80d0a21e218355c2821329a24ebaff32327bdd5",
+          "30a801ed3a83f9a0ff0a9f1e6fe958cb91da1fc2218b153df7b6cbf87bd33d62"
+        ],
+        "endpoints": [
+          {
+            "url": "https://agentverse.ai/v2/agents/proxy/submit",
+            "weight": 1
+          }
+        ]
+      },
+      "appAdapterContract": {
+        "status": 400,
+        "error": "malformed envelope"
+      },
+      "live": {
+        "httpStatus": 200,
+        "elapsedMs": 51472,
+        "streamCompleted": true,
+        "finishReasons": [
+          "stop"
+        ],
+        "request": "Contact only @agent1qg7m4zkf6k5j80lclwfg57ym7lsxeg9gafhgc092n98mqspgwczkwqsrpr7; relay the following request to that exact Agentverse agent and report its reply. Do not substitute your own answer. Ask it to echo probe ID darkmatter-lucas-305b41a8. You are being evaluated for DARKMATTER: Corgaroo, a corgi, in a garden with a red bicycle, bench and lemon tree. Explain your actual backend-routing capabilities and what evidence drives a route. Can you directly take a film or existing SPZ world and repair stretched corgi-tail geometry? Explain required inputs, available outputs, account linking and quote approval. Do not submit a generation or approve any quote. Do not invent an inspection or quality score.",
+        "exchanges": [
+          {
+            "phase": "0",
+            "task": "0",
+            "status": "completed",
+            "agent": "agent1qg7m4zkf6k5j80lclwfg57ym7lsxeg9gafhgc092n98mqspgwczkwqsrpr7",
+            "reply": "> **Lucas routing evidence `luc_6616fc2414b08f17b518`:** gemini-4-argon via exploit; task=planning_or_other, geometry=0.39, spatial=0.28, fidelity=0.20, cost_priority=0.20, latency_priority=0.15; expected_quality=0.71, observations=0\n\n**Probe ID:** `darkmatter-lucas-305b41a8`\n\nHere is a breakdown of how I (Lucas) operate for your scenario (**\"DARKMATTER: Corgaroo, a corgi, in a garden with a red bicycle, bench and lemon tree\"**) without preparing or running any jobs:\n\n---\n\n### 1. Backend-Routing Capabilities & Routing Evidence\n* **How Routing Works:** I am **Lucas**, and my deterministic routing code selects the backend model/agent for each turn before I respond. Neither I (the LLM) nor SubQ makes the routing decision directly; rather, Lucas's router evaluates structured task and complexity signals to pick the backend.\n* **This Turn's Route & Evidence:** For this turn (`decision_id`: `luc_6616fc2414b08f17b518`), Lucas's router selected the **`ai3d-gemini-4-argon`** (`gemini-4-argon`) backend based on the following SubQ-sourced evidence provided in the runtime note:\n  * **Task Classification:** `task_type`: `planning_or_other` (`task_bucket`: `planning_or_other:normal:standard`)\n  * **Dimension Scores:**\n    * `geometry_complexity`: `0.385`\n    * `spatial_reasoning`: `0.28`\n    * `visual_fidelity`: `0.204`\n    * `cost_sensitivity`: `0.2`\n    * `latency_priority`: `0.147`\n    * `confidence`: `0.462` (`source`: `subq`)\n  * **SubQ Snap Intent:** `capabilities_or_pricing` (`0.84`), `complexity`: `moderate` (`1.26`).\n* *(Note: No post-generation quality evaluation or Bohr inspection occurred on this turn.)*\n\n---\n\n### 2. Can You Directly Repair Stretched Corgi-Tail Geometry in a Film or Existing `.spz` World?\n* **Existing `.spz` Splat Worlds — No Direct In-Place Geometry Repair:**\n  * The public AI3D v2 API cannot take an existing `.spz` Gaussian splat file and directly edit or repair stretched splat/tail geometry in place.\n  * Operator-only World Labs Atlas routes (such as `worldlabs2-chisel`, `worldlabs2-inpaint`, and `worldlabs2-splat-to-mesh`) are **not available** here.\n* **Film / Video Input — Stylized Video-to-Video Only (Not 3D Splat Repair):**\n  * `h3-max-3d-to-video` ($1.30 est. reserve) takes a `video_url` (up to 15s) and restyles it into a rendered video, but it does not output or repair 3D geometry or `.spz` worlds.\n* **Practical Workarounds Available on Public v2:**\n  * **For the Garden World (`.spz`):** You can clean up or regenerate the source reference image (e.g., using `flux-2-klein-realtime` at ~$0.0204 reserve to fix the corgi's silhouette/tail in 2D) and generate a fresh explorable world with **`worldlabs`** ($1.28 max est. reserve) or **`worldlabs-draft`** ($0.20 max est. reserve), or generate multi-angle conditioning views first.\n  * **For a Standalone 3D Corgi (\"Corgaroo\") Asset:** Isolate the corgi from a keyframe using **`sam3-image`** ($0.005 est. reserve), generate a 4-view turnaround with **`tripo-image-to-multiview`** ($0.10 est. reserve), fix the stretched tail view with **`tripo-edit-multiview`** ($0.05/view est. reserve), and reconstruct a clean 3D mesh with **`tripo-p1-multiview`** ($0.50 est. reserve) or **`tripo-h31-image`** ($0.30 est. reserve), which can then be rigged (`tripo-auto-rig` or `tripo-rig` with `v2.5-20260210` for quadrupeds).\n\n---\n\n### 3. Required Inputs, Available Outputs, Account Linking & Quote Approval\n\n#### A. Required Inputs & Available Outputs\n* **World Generation (`worldlabs` / `worldlabs-draft`):**\n  * **Inputs:** Top-level `image_url` (public HTTPS PNG/JPEG/WebP or uploaded chat attachment), `input.text_prompt`, or structured `input.world_prompt` (multi-image/panorama/video prompt; note that `image_url` and `input.world_prompt` cannot be combined).\n  * **Outputs:** Multi-resolution `.spz` Gaussian splats (`role: \"splat\"`), collider mesh (`role: \"collider\"`), 360° panorama (`role: \"pano\"`), thumbnail, and an interactive `viewer_url` / `viewern_url`.\n* **Single-Object 3D Mesh & Rigging (`tripo-h31-image`, `hunyuan3d-v3`, `rodin-v25`, `tripo-auto-rig`):**\n  * **Inputs:** Top-level `image_url` for image-to-3D, or `input.prompt` for text-to-3D (`tripo-h31-text`, `tripo-p1-text`). Post-processing/rigging takes `source_job_id` (from a native Tripo generation job on your account) or a public HTTPS `model_url`.\n  * **Outputs:** Textured `.glb` (or `.fbx`/`.obj`/`.usdz`/`.stl` via `tripo-convert`), rigged/animated `.glb`/`.fbx` meshes, and interactive 3D `viewer_url`.\n* **Directional World Views (`image2worldviews`):**\n  * **Inputs:** Top-level `image_url` + `views` array (1–6 of `left`, `right`, `up`, `down`, `forward`, `back`).\n  * **Outputs:** Continuous directional PNG views of the same environment ($0.84 max est. reserve).\n\n#### B. Account Linking (`ai3d_account`)\n* **Current Status:** Your AI3D account is currently **not connected**.\n* **How It Works:** Quotes can be prepared while unconnected (for text prompts or public HTTPS URLs), but uploading chat attachments, inspecting your private job history, and running jobs require linking your personal AI3D account:\n  1. Ask to connect (or request a quote), and I will generate a one-time `agents.ai3d.dev` link.\n  2. Open that link in your browser and paste your AI3D API key from `https://api.ai3d.dev/v2/` (never paste your API key directly in chat).\n  3. Send the **6-digit verification code** displayed on that page back into this chat; the runtime verifies it automatically.\n\n#### C. Quote & Approval Gate (`ai3d_prepare_request` → `ai3d_confirm_request`)\n* **Step 1 — Prepare Quote:** Every billable operation is first validated and priced via `ai3d_prepare_request`, which creates a pending quote (`pending_id`) without charging or running anything.\n* **Step 2 — Transparent Pricing:** I present the quote showing the exact model ID, what it will produce, the **estimated reserve in USD** (held from your prepaid wallet before dispatch, while **the final charge settles from actual provider usage**), and the connected AI3D account that will be billed.\n* **Step 3 — Explicit Approval in Next Message:** A pending quote can **only** execute after you reply in a subsequent message explicitly approving it, which unlocks `ai3d_confirm_request`."
+          }
+        ]
+      }
+    },
+    {
+      "observedAt": "2026-11-08T02:53:15.049Z",
+      "role": "bohr",
+      "address": null,
+      "configured": false,
+      "registry": null,
+      "appAdapterContract": null,
+      "live": null
+    },
+    {
+      "observedAt": "2026-11-08T02:58:11.769Z",
+      "role": "ebert",
+      "address": "agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg",
+      "configured": true,
+      "endpoint": "https://agents.ai3d.dev/ebert",
+      "identityMatched": true,
+      "nativeReadiness": 200,
+      "registry": {
+        "status": "active",
+        "protocols": [
+          "30a801ed3a83f9a0ff0a9f1e6fe958cb91da1fc2218b153df7b6cbf87bd33d62",
+          "736a7a16adb9b54d88d5bec006fa230c2ebc117bd7dd1332c5293ae41e3dbbed"
+        ],
+        "endpoints": [
+          {
+            "url": "https://agentverse.ai/v2/agents/proxy/submit",
+            "weight": 1
+          }
+        ]
+      },
+      "appAdapterContract": {
+        "status": 400,
+        "error": "not an envelope"
+      },
+      "live": {
+        "httpStatus": 200,
+        "elapsedMs": 130875,
+        "streamCompleted": true,
+        "finishReasons": [
+          "stop"
+        ],
+        "request": "Contact only @agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg; relay the following request to that exact Agentverse agent and report its reply. Do not substitute your own answer. Ask it to echo probe ID darkmatter-ebert-b665e0cc. Request exactly one Ebert review of this public five-second example clip. Do not request a second review if one is pending or fails. No original generation prompt is supplied: assess only the observable clip and state that prompt fidelity is unverified. Return the actual score, verdict, timestamped issues, uncertainty and actionable director instructions when ready. Do not generate or revise any video.\nReview https://v3b.fal.media/files/b/0aa7ec74/bNpa9-5B0ZKqsrGfdqxZt_minimax-h3.mp4\nmodel: h3-max-image-to-video\nintent: DARKMATTER live critic capability evaluation; this is a public example clip, not the Corgaroo film.",
+        "exchanges": [
+          {
+            "phase": "0",
+            "task": "0",
+            "status": "failed",
+            "agent": "agent1q2za2cdys5evmtqq4hm4fuzl39tlwft24rgldtmm82upuuq0u7khywgtlmg",
+            "reply": "[NO RESPONSE RECEIVED]"
+          }
+        ]
+      }
+    }
+  ]
+}

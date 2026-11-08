@@ -1,5 +1,10 @@
 node_modules/
 dist/
+.scratch/
 .env
 .env.*
 !.env.example
+*.code-workspace
+.DS_Store
+.keys/
+*.pem
