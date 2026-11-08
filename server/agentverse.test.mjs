@@ -88,6 +88,16 @@ test('cancellation aborts the pending transport', async () => {
   await assert.rejects(pending, /Stopped by test/);
 });
 
+test('the supplied film reaches Lucas alongside prior outputs and the saved world', async () => {
+  let prompt;
+  await callAgentverse({ ...request, videoUrl: 'https://example.com/take.mp4' }, { env, fetcher: async (url, options) => {
+    prompt = JSON.parse(options.body).messages[0].content;
+    return stream([task({ status: 'completed', agent_used: { agent_address: address }, agent_response: 'I need the existing job ID.' })]);
+  } });
+  assert.match(prompt, /"videoUrl":"https:\/\/example.com\/take.mp4"/);
+  assert.match(prompt, /scene.json/);
+});
+
 test('account setup uses a fresh trusted form and keeps the AI3D key out of chat', async () => {
   const settings = { ...env, AI3D_API_KEY: 'ai3d_fixture_account_key_for_test_only' };
   let asiCalls = 0, formCalls = 0;

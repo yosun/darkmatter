@@ -18,7 +18,7 @@ function nativeMessage({ agent, brief, instruction, context, videoUrl, videoMode
     if (!videoUrl) return 'No video has been supplied to DARKMATTER yet. Please return your required video-review input instructions. Do not invent a score or review.';
     return `Review ${videoUrl}\n${videoModel ? `model: ${videoModel}\n` : ''}intent: DARKMATTER critic review of the supplied video. Do not generate or revise a video.\nprompt: ${brief.replace(/[\r\n]+/g, ' ')}`;
   }
-  const compact = { artifacts: context.artifacts.slice(-12).map((artifact) => ({ ...artifact,
+  const compact = { ...(videoUrl ? { videoUrl } : {}), artifacts: context.artifacts.slice(-12).map((artifact) => ({ ...artifact,
     url: artifact.url?.startsWith('/') ? new URL(artifact.url, publicOrigin).href : artifact.url, text: artifact.text?.slice(0, 6000) })),
     findings: context.findings.slice(-12), messages: context.messages.slice(-8).map((message) => ({ ...message, text: message.text?.slice(0, 2000) })) };
   return `DARKMATTER / ${agent}\nCreative brief: ${brief}\nTask: ${instruction}\nThe existing Corgaroo scene is supplied as context. Explain your actual next action and required inputs. Do not claim to have generated, repaired or inspected assets unless you actually did. Do not submit a new billable generation, link an account or approve a quote in this test. If a required input or approval is missing, say so.\nShared context:\n${JSON.stringify(compact).slice(0, 30000)}`;
