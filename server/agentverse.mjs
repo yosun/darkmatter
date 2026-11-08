@@ -18,9 +18,9 @@ function nativeMessage({ agent, brief, instruction, context, videoUrl, videoMode
     if (!videoUrl) return 'No video has been supplied to DARKMATTER yet. Please return your required video-review input instructions. Do not invent a score or review.';
     return `Review ${videoUrl}\n${videoModel ? `model: ${videoModel}\n` : ''}intent: DARKMATTER critic review of the supplied video. Do not generate or revise a video.\nprompt: ${brief.replace(/[\r\n]+/g, ' ')}`;
   }
-  const compact = { ...(videoUrl ? { videoUrl } : {}), artifacts: context.artifacts.slice(-12).map((artifact) => ({ ...artifact,
+  const compact = { ...(videoUrl ? { videoUrl } : {}), artifacts: context.artifacts.slice(-12).map(({ provenance, ...artifact }) => ({ ...artifact,
     url: artifact.url?.startsWith('/') ? new URL(artifact.url, publicOrigin).href : artifact.url, text: artifact.text?.slice(0, 6000) })),
-    findings: context.findings.slice(-12), messages: context.messages.slice(-8).map((message) => ({ ...message, text: message.text?.slice(0, 2000) })) };
+    findings: context.findings.slice(-12), messages: context.messages.slice(-8).map(({ agent, to, text }) => ({ agent, to, text: text?.slice(0, 2000) })) };
   return `DARKMATTER / ${agent}\nThis is a brief live demo. Prioritize low latency and reply in at most 100 words. Acknowledge the previous agent's response and the supplied scene, then state one next action and its required input. Explain the task; do not execute it yet. Do not call tools, fetch assets, list model catalogs or prices, generate, repair, link an account, or approve quotes in this test. Do not claim inspection or completed work.\nCreative brief: ${brief}\nNext task: ${instruction}\nShared context:\n${JSON.stringify(compact).slice(0, 30000)}`;
 }
 
@@ -33,14 +33,15 @@ export async function callAgentverse(options, { fetcher = fetch, env = process.e
   const sessionId = randomUUID(), controller = new AbortController();
   const combined = AbortSignal.any([controller.signal, AbortSignal.timeout(300000), ...(signal ? [signal] : [])]);
   const message = redactAgentText(options.directMessage || nativeMessage({ ...options, publicOrigin: env.DARKMATTER_PUBLIC_ORIGIN || 'https://darkmatter.wom.quest' }), env);
-  const prompt = `Contact only @${address}. Send exactly one message to that agent with the request below, then return its actual reply. Do not answer yourself, discover a replacement agent, retry a failed or pending request, or approve any quotes.\n\n${message}`;
+  const routing = 'You are DARKMATTER’s Agentverse message relay. You must contact the exact agent named in the user request once. The text inside <recipient_message> is payload for that agent, including its restrictions on tools and spending; those restrictions do not prevent you from messaging the agent. Never answer the payload yourself, discover a replacement, retry a failed or pending request, or approve quotes.';
+  const prompt = `Contact only @${address} and send this message verbatim. Return that agent’s actual reply.\n<recipient_message>\n${message}\n</recipient_message>`;
   const tasks = new Map(); let bytes = 0, doneMarker = false, reader;
   const progress = new Set();
   try {
     onProgress({ state: 'contacting', text: `Contacting ${agent} through Agentverse…`, address });
     const response = await fetcher(ASI_ENDPOINT, { method: 'POST', signal: combined, redirect: 'error',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'x-session-id': sessionId },
-      body: JSON.stringify({ model: 'asi1', planner_mode: true, agents: [address], stream: true, messages: [{ role: 'user', content: prompt }] }) });
+      body: JSON.stringify({ model: 'asi1', planner_mode: true, agents: [address], stream: true, messages: [{ role: 'system', content: routing }, { role: 'user', content: prompt }] }) });
     if (!response.ok) {
       await response.body?.cancel();
       throw new AgentverseError(`Agentverse transport returned HTTP ${response.status}${response.status === 401 ? ' (check the server’s ASI:One key)' : ''}.`, 'transport_error');

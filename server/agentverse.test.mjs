@@ -31,10 +31,11 @@ test('native bridge merges partial stream updates and returns only the configure
   assert.equal(calls, 1);
   assert.equal(outbound.planner_mode, true);
   assert.deepEqual(outbound.agents, [address]);
-  assert.match(outbound.messages[0].content, /https:\/\/darkmatter.wom.quest\/worlds\/corgi\/scene.json/);
-  assert.match(outbound.messages[0].content, /"position":\[1,2,3\]/);
-  assert.match(outbound.messages[0].content, /at most 100 words/);
-  assert.match(outbound.messages[0].content, /Do not call tools, fetch assets/);
+  assert.equal(outbound.messages[0].role, 'system');
+  assert.match(outbound.messages.at(-1).content, /https:\/\/darkmatter.wom.quest\/worlds\/corgi\/scene.json/);
+  assert.match(outbound.messages.at(-1).content, /"position":\[1,2,3\]/);
+  assert.match(outbound.messages.at(-1).content, /at most 100 words/);
+  assert.match(outbound.messages.at(-1).content, /Do not call tools, fetch assets/);
   assert.match(result.text, /Corgaroo 🪐/);
   assert.doesNotMatch(result.text, /Broker answer|Do not expose|fixture-asi|private-token/);
   assert.equal(result.provenance.address, address);
@@ -53,6 +54,17 @@ test('a different agent cannot satisfy the configured identity', async () => {
   ]) }), /no verified/);
 });
 
+test('previous agents’ transport identities stay in the trace and out of downstream routing context', async () => {
+  const other = 'agent1unrelatedpreviousagent'; let prompt;
+  const provenance = { transport: 'agentverse', address: other, sessionId: 'previous-session', phase: '0', task: '0' };
+  await callAgentverse({ ...request, context: { artifacts: [{ kind: 'report', text: 'A video is required.', provenance }], findings: [],
+    messages: [{ agent: 'ebert', text: 'A video is required.', provenance }] } }, { env, fetcher: async (url, options) => {
+    prompt = JSON.parse(options.body).messages.at(-1).content;
+    return stream([task({ status: 'completed', agent_used: { agent_address: address }, agent_response: 'Acknowledged Ebert. I need the world job ID.' })]);
+  } });
+  assert.match(prompt, /A video is required/); assert.doesNotMatch(prompt, /agent1unrelated|previous-session|provenance/);
+});
+
 test('timeout metadata is surfaced as uncertain and never automatically retried', async () => {
   let calls = 0;
   await assert.rejects(callAgentverse(request, { env, fetcher: async () => {
@@ -64,7 +76,7 @@ test('timeout metadata is surfaced as uncertain and never automatically retried'
 test('Ebert gets no scene URL masquerading as a video when input is missing', async () => {
   let text;
   const result = await callAgentverse({ ...request, agent: 'ebert' }, { env, fetcher: async (url, options) => {
-    text = JSON.parse(options.body).messages[0].content;
+    text = JSON.parse(options.body).messages.at(-1).content;
     return stream([task({ status: 'completed', agent_used: { agent_address: address }, agent_response: 'Send me a video to review.' })]);
   } });
   assert.doesNotMatch(text, /https:\/\//);
@@ -74,7 +86,7 @@ test('Ebert gets no scene URL masquerading as a video when input is missing', as
 test('a supplied video is the first URL in Ebert’s request', async () => {
   let text;
   await callAgentverse({ ...request, agent: 'ebert', videoUrl: 'https://example.com/take.mp4' }, { env, fetcher: async (url, options) => {
-    text = JSON.parse(options.body).messages[0].content;
+    text = JSON.parse(options.body).messages.at(-1).content;
     return stream([task({ status: 'completed', agent_used: { agent_address: address }, agent_response: 'Actual review.' })]);
   } });
   assert.equal(text.match(/https:\/\/\S+/)[0], 'https://example.com/take.mp4');
@@ -93,7 +105,7 @@ test('cancellation aborts the pending transport', async () => {
 test('the supplied film reaches Lucas alongside prior outputs and the saved world', async () => {
   let prompt;
   await callAgentverse({ ...request, videoUrl: 'https://example.com/take.mp4' }, { env, fetcher: async (url, options) => {
-    prompt = JSON.parse(options.body).messages[0].content;
+    prompt = JSON.parse(options.body).messages.at(-1).content;
     return stream([task({ status: 'completed', agent_used: { agent_address: address }, agent_response: 'I need the existing job ID.' })]);
   } });
   assert.match(prompt, /"videoUrl":"https:\/\/example.com\/take.mp4"/);
@@ -110,7 +122,7 @@ test('account setup uses a fresh trusted form and keeps the AI3D key out of chat
       assert.equal(new URLSearchParams(options.body).get('api_key'), settings.AI3D_API_KEY);
       return new Response('<p class="code" aria-label="Confirmation code">123&nbsp;456</p>');
     }
-    const prompt = JSON.parse(options.body).messages[0].content; prompts.push(prompt);
+    const prompt = JSON.parse(options.body).messages.at(-1).content; prompts.push(prompt);
     const reply = [
       'Connect: https://agents.ai3d.dev/agentverse/connect/older_link_0123456789',
       'New link: https://agents.ai3d.dev/agentverse/connect/fresh_link_0123456789',
