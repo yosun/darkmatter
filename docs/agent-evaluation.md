@@ -48,7 +48,7 @@ Lucas reported an expected quality of 0.71 with zero observations for the select
 
 **Next verification:** execute a bounded, explicitly approved generation through a linked account; retain the decision ID, actual artifact, charged cost, latency and structural/visual evidence. Evaluate resulting worlds independently before drawing any claim about routing quality or adaptive improvement.
 
-## Implications for DARKMATTER
+## Implications for DARKMATTER at the time of this evaluation
 
 The existing native URLs are real agent transports, but they are not compatible with the app’s simple JSON adapter POST. The app now labels these endpoints **Agentverse · bridge needed** and rejects incompatible live runs locally instead of displaying a false adapter-ready state.
 
@@ -67,3 +67,17 @@ npm run eval:agents -- --live --role=ebert --video=https://your-public-host/exam
 The live evaluator uses ASI:One planner mode with explicit agent addresses, a unique session/probe ID and a five-minute request deadline. Local evidence stays in `.scratch/eval/`; publish only a reviewed export. Missing configuration, failed requests and incomplete streams remain visible. Ordinary app tests do not call these agents or providers.
 
 Protocol references: [Agent Chat Protocol](https://innovationlab.fetch.ai/resources/docs/agent-communication/agent-chat-protocol), [ASI:One planner progress and timing](https://docs.asi1.ai/documentation/build-with-asi-one/planner), [Agentverse discovery and registration](https://innovationlab.fetch.ai/resources/docs/agentverse/searching).
+
+## Follow-up: Run live connected in the webapp
+
+On November 7, 2026, at 19:50–19:51 Pacific (November 8 UTC), a real Chrome test clicked **Run live** in the workspace. Run `1e04199b-af0a-427e-ab5a-8f53db8cc79b` retained two replies attributed to the configured identities, with no failed calls:
+
+| Role | Observed result |
+| --- | --- |
+| Ebert | Returned video-input instructions. No video was supplied, so no critique or score is claimed. Session `536d9b7e-8517-40e8-a4b7-2da3a80731c6`, phase/task `0/0`. |
+| Lucas | The server completed AI3D account connection through a fresh private form, then requested the actual task. Lucas returned decision `luc_f3a691a38808af486eb7`, routed to Gemini 4 Argon, and described reconstruction options, required inputs and the separate quote approval step. Session `a7adacbc-4494-42bf-842b-ec9327cafa7a`, phase/task `0/0`. |
+| Spielberg, Bohr | Explicitly skipped because their live settings were absent. |
+
+This supersedes the earlier webapp bridge limitation. It establishes a working button, streamed replies, account setup and context handoff between the two configured roles. Lucas explicitly reported zero generated jobs and zero quotes. No repair, reshoot, four-agent loop or independent quality improvement was demonstrated. Long video-review completion remains unverified in this runner.
+
+The private browser trace and screenshot are retained in `.scratch/qa/`; credentials, connection tokens, confirmation codes and account details are excluded from this report. Reproduce with `npm run test:live -- --live` against a configured running app; this authorizes billed agent chat. Ordinary tests and deployment checks use fixtures/replay.

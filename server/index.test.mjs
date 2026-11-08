@@ -9,8 +9,11 @@ import { AGENTS } from '../shared/scenario.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 
 async function service(endpoints = {}, settings = {}) {
-  const env = { ...process.env, DARKMATTER_PORT: '0', DARKMATTER_AGENT_TOKEN: 'fixture-token', ...settings };
-  for (const agent of AGENTS) env[`DARKMATTER_${agent.id.toUpperCase()}_ENDPOINT`] = endpoints[agent.id] || '';
+  const env = { ...process.env, NODE_ENV: 'test', DARKMATTER_LIVE_ACCESS_TOKEN: '', DARKMATTER_PORT: '0', DARKMATTER_AGENT_TOKEN: 'fixture-token', FETCH_ASI_API: '', ASI_ONE_API_KEY: '', ...settings };
+  for (const agent of AGENTS) {
+    env[`DARKMATTER_${agent.id.toUpperCase()}_ENDPOINT`] = endpoints[agent.id] || '';
+    env[`DARKMATTER_${agent.id.toUpperCase()}_AGENT_ADDRESS`] = settings[`DARKMATTER_${agent.id.toUpperCase()}_AGENT_ADDRESS`] || '';
+  }
   const child = spawn(process.execPath, ['server/index.mjs'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const origin = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Event service did not start.')), 5000);
@@ -24,8 +27,8 @@ async function service(endpoints = {}, settings = {}) {
   return { origin, close: async () => { child.kill('SIGTERM'); if (child.exitCode === null) await once(child, 'exit'); } };
 }
 
-async function collect(origin, id, onEvent = () => {}) {
-  const response = await fetch(`${origin}/api/runs/${id}/events`, { signal: AbortSignal.timeout(7000) });
+async function collect(origin, id, onEvent = () => {}, headers = {}) {
+  const response = await fetch(`${origin}/api/runs/${id}/events`, { headers, signal: AbortSignal.timeout(7000) });
   assert.equal(response.status, 200);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -156,6 +159,53 @@ test('live orchestration passes actual outputs between adapters and retains hone
     await fetch(`${live.origin}/api/runs/${run.id}/cancel`, { method: 'POST', headers: { Origin: live.origin } });
     assert.equal((await collect(live.origin, run.id)).at(-1).type, 'run.cancelled');
   });
+
+  await t.test('a partial live run calls connected roles once and marks missing roles explicitly', async () => {
+    const partial = await service({ ebert: adapterOrigin + '/ebert', lucas: adapterOrigin + '/lucas' });
+    try {
+      const count = calls.length;
+      const response = await fetch(`${partial.origin}/api/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'live', brief: 'Partial collaboration' }) });
+      assert.equal(response.status, 202);
+      const events = await collect(partial.origin, (await response.json()).id);
+      assert.deepEqual(calls.slice(count).map((call) => call.agent), ['ebert', 'lucas']);
+      assert.deepEqual(events.filter((event) => event.type === 'agent.skipped').map((event) => event.agent), ['spielberg', 'bohr']);
+      assert.deepEqual(events.filter((event) => event.type === 'agent.started').map((event) => [event.sequence, event.total]), [[1, 2], [2, 2]]);
+      assert.equal(events.at(-1).partial, true);
+      assert.deepEqual(events.at(-1).responded, ['ebert', 'lucas']);
+      assert.equal(calls.at(-1).context.artifacts.length, 1);
+    } finally { await partial.close(); }
+  });
+});
+
+test('production protects paid calls and their evidence while replay remains public', async (t) => {
+  let calls = 0;
+  const fixture = createServer((request, response) => { calls++; request.resume(); response.end(JSON.stringify({ message: 'Fixture agent reply.' })); });
+  await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve));
+  t.after(() => { fixture.closeAllConnections(); fixture.close(); });
+  const live = await service({ lucas: `http://127.0.0.1:${fixture.address().port}/lucas` }, { NODE_ENV: 'production', DARKMATTER_LIVE_ACCESS_TOKEN: 'fixture-private-demo-access-key' });
+  t.after(() => live.close());
+  const post = (path, body, cookie) => fetch(live.origin + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
+  const config = await fetch(live.origin + '/api/config').then((response) => response.json());
+  assert.equal(config.liveAccessRequired, true); assert.equal(config.liveAuthorized, false);
+  assert.equal((await post('/api/runs', { mode: 'live' })).status, 401);
+  assert.equal((await post('/api/live/session', { token: 'wrong-key' })).status, 401);
+  assert.equal(calls, 0);
+  const unlocked = await post('/api/live/session', { token: 'fixture-private-demo-access-key' });
+  assert.equal(unlocked.status, 200);
+  const cookie = unlocked.headers.get('set-cookie').split(';')[0];
+  assert.doesNotMatch(cookie, /fixture-private/);
+  const started = await post('/api/runs', { mode: 'live', scope: 'lucas' }, cookie);
+  assert.equal(started.status, 202);
+  const { id } = await started.json();
+  for (const path of [`/api/runs/${id}`, `/api/runs/${id}/events`]) assert.equal((await fetch(live.origin + path)).status, 401);
+  assert.equal((await post(`/api/runs/${id}/cancel`, {})).status, 401);
+  assert.equal((await collect(live.origin, id, undefined, { cookie })).at(-1).type, 'run.completed');
+  assert.equal(calls, 1);
+  const replay = await post('/api/runs', { mode: 'replay' });
+  assert.equal(replay.status, 202);
+  const replayId = (await replay.json()).id;
+  assert.equal((await post(`/api/runs/${replayId}/cancel`, {})).status, 200);
+  assert.equal((await collect(live.origin, replayId)).at(-1).type, 'run.cancelled');
 });
 
 test('the configured HTTPS deployment origin can run replay while unrelated origins are rejected', async (t) => {
@@ -182,6 +232,18 @@ test('native Agentverse URLs are not misrepresented as compatible app adapters',
     assert.equal(agent.configured, false);
     const response = await fetch(`${live.origin}/api/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'live', scope: role }) });
     assert.equal(response.status, 409);
-    assert.match((await response.json()).error, /signed messages/);
+    assert.match((await response.json()).error, /FETCH_ASI_API/);
   }
+});
+
+test('configured Agentverse identities use the native bridge without needing all four roles', async (t) => {
+  const live = await service({ lucas: 'https://agents.ai3d.dev/agentverse' }, {
+    FETCH_ASI_API: 'fixture-transport-key', DARKMATTER_LUCAS_AGENT_ADDRESS: 'agent1qg7m4zkf6k5j80lclwfg57ym7lsxeg9gafhgc092n98mqspgwczkwqsrpr7',
+  });
+  t.after(() => live.close());
+  const body = await fetch(`${live.origin}/api/config`).then((response) => response.json());
+  assert.equal(body.liveReady, true);
+  assert.equal(body.fullLoopReady, false);
+  assert.equal(body.agents.find((agent) => agent.id === 'lucas').configured, true);
+  assert.doesNotMatch(JSON.stringify(body), /fixture-transport-key/);
 });

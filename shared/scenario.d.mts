@@ -14,6 +14,7 @@ export interface Artifact {
   viewer?: 'splat';
   preset?: string;
   camera?: CameraPose;
+  provenance?: { transport: 'agentverse'; address: string; sessionId: string; phase: string; task: string };
   annotation?: { x: number; y: number; w: number; h: number; label: string };
 }
 export const AGENTS: readonly Agent[];

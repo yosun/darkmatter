@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test server/*.test.mjs",
     "test:viewer": "node scripts/check-viewer.mjs",
+    "test:live": "node scripts/check-live.mjs",
     "capture:world": "node scripts/check-viewer.mjs --capture",
     "eval:agents": "node scripts/evaluate-agents.mjs",
     "check:secrets": "node scripts/check-secrets.mjs --history",

@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AGENTS, STEPS, REPLAY } from '../shared/scenario.mjs';
+import { callLinkedAgent } from './agentverse.mjs';
+import { createLiveAccess } from './live-access.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const dist = path.join(root, 'dist');
@@ -12,14 +14,19 @@ const port = Number(process.env.DARKMATTER_PORT || 8788);
 const host = process.env.DARKMATTER_HOST || '127.0.0.1';
 const publicOrigin = process.env.DARKMATTER_PUBLIC_ORIGIN || '';
 const runs = new Map();
+const liveAccess = createLiveAccess();
 const connections = () => AGENTS.map((agent) => {
   const prefix = `DARKMATTER_${agent.id.toUpperCase()}`;
   const endpoint = process.env[`${prefix}_ENDPOINT`] || '';
   let nativeAgentverse = false;
   try { const url = new URL(endpoint); nativeAgentverse = url.hostname === 'agents.ai3d.dev' && /^\/(?:ebert|agentverse)(?:\/|$)/.test(url.pathname); } catch { /* Missing configuration stays unavailable. */ }
-  const transport = nativeAgentverse || process.env[`${prefix}_TRANSPORT`] === 'agentverse' ? 'agentverse' : 'adapter';
-  return { ...agent, address: process.env[`${prefix}_AGENT_ADDRESS`] || '', endpointConfigured: Boolean(endpoint), transport,
-    configured: Boolean(endpoint) && transport === 'adapter' };
+  const requested = process.env[`${prefix}_TRANSPORT`];
+  const transport = ['agentverse', 'adapter'].includes(requested) ? requested : nativeAgentverse ? 'agentverse' : 'adapter';
+  const address = process.env[`${prefix}_AGENT_ADDRESS`] || '';
+  const hasAsiKey = Boolean(process.env.FETCH_ASI_API || process.env.ASI_ONE_API_KEY);
+  const configured = transport === 'agentverse' ? /^agent1[a-z0-9]{20,}$/.test(address) && hasAsiKey : Boolean(endpoint);
+  return { ...agent, address, endpointConfigured: Boolean(endpoint), transport, configured,
+    reason: configured ? null : transport === 'agentverse' ? !hasAsiKey ? 'Server needs FETCH_ASI_API' : 'Agentverse address missing' : 'Endpoint not configured' };
 });
 const json = (response, status, body) => { response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(body)); };
 const emit = (run, type, data = {}) => {
@@ -73,6 +80,16 @@ function safeArtifact(raw, fallbackId) {
 }
 
 async function invoke(run, step, index) {
+  const connection = run.connections.find((agent) => agent.id === step.agent);
+  if (connection.transport === 'agentverse') {
+    const result = await callLinkedAgent({ address: connection.address, agent: step.agent, brief: run.brief, instruction: step.instruction,
+      context: { artifacts: run.artifacts, findings: run.findings, messages: run.messages }, videoUrl: run.videoUrl, videoModel: run.videoModel,
+      signal: run.controller.signal, onProgress: (progress) => emit(run, 'agent.progress', { agent: step.agent, ...progress }) });
+    return { message: result.text.length > 2400 ? `${result.text.slice(0, 2400)}\n\n[Full reply retained in the artifact.]` : result.text,
+      artifact: { id: `live-${step.agent}-${index + 1}`, kind: 'report', title: `${connection.name} / live Agentverse reply`, text: result.text,
+        caption: result.needsInput ? result.inputKind === 'account' ? 'Real agent reply. AI3D account setup is needed.' : 'Real agent reply. Add a video URL to request a critique.' : 'Actual reply from the configured agent; not a planner summary or replay.', provenance: result.provenance },
+      findings: [], needsInput: result.needsInput, inputKind: result.inputKind, provenance: result.provenance };
+  }
   const endpoint = process.env[`DARKMATTER_${step.agent.toUpperCase()}_ENDPOINT`];
   const headers = { 'Content-Type': 'application/json' };
   if (process.env.DARKMATTER_AGENT_TOKEN) headers.Authorization = `Bearer ${process.env.DARKMATTER_AGENT_TOKEN}`;
@@ -92,19 +109,28 @@ async function invoke(run, step, index) {
 }
 
 async function execute(run) {
-  emit(run, 'run.started', { mode: run.mode, brief: run.brief, scope: run.scope });
+  emit(run, 'run.started', { mode: run.mode, brief: run.brief, scope: run.scope, partial: run.partial, missingAgents: run.missingAgents, total: run.steps.length });
+  if (run.mode === 'live' && !run.scope) for (const id of run.missingAgents) emit(run, 'agent.skipped', { agent: id, text: 'Not configured for this live run.' });
   try {
-    const selected = run.scope ? STEPS.map((step, i) => ({ step, i })).filter(({ step }) => step.agent === run.scope).slice(0, 1)
-      : STEPS.map((step, i) => ({ step, i }));
+    const selected = run.steps;
     for (let n = 0; n < selected.length; n++) {
       const { step, i } = selected[n];
       run.controller.signal.throwIfAborted();
-      emit(run, 'agent.started', { agent: step.agent, step: i + 1, title: step.title });
+      emit(run, 'agent.started', { agent: step.agent, step: i + 1, sequence: n + 1, total: selected.length, title: step.title });
       let result;
       if (run.mode === 'replay') { await wait(1800, run.controller.signal); result = REPLAY[i]; }
-      else result = await invoke(run, step, i);
+      else {
+        try { result = await invoke(run, step, i); }
+        catch (error) {
+          if (run.controller.signal.aborted || !run.partial) throw error;
+          run.failures.push({ agent: step.agent, code: error.code || 'request_failed', uncertain: Boolean(error.uncertain) });
+          emit(run, 'agent.failed', { agent: step.agent, text: String(error.message || 'Agent request failed.'), uncertain: Boolean(error.uncertain), code: error.code });
+          continue;
+        }
+      }
       run.controller.signal.throwIfAborted();
-      const message = { agent: step.agent, to: run.scope ? null : step.to, text: result.message, step: i + 1 };
+      const message = { agent: step.agent, to: run.scope ? null : run.partial ? selected[n + 1]?.step.agent || null : step.to, text: result.message, step: i + 1,
+        ...(result.provenance ? { provenance: result.provenance } : {}) };
       run.messages.push(message);
       emit(run, 'message', message);
       for (const finding of result.findings || (result.finding ? [result.finding] : [])) {
@@ -116,14 +142,17 @@ async function execute(run) {
         run.artifacts.push(artifact);
         emit(run, 'artifact.created', { agent: step.agent, artifact });
       }
-      emit(run, 'agent.completed', { agent: step.agent, step: i + 1 });
+      run.responded.push(step.agent);
+      if (result.needsInput) { run.needsInput.push(step.agent); run.inputKinds[step.agent] = result.inputKind || 'input'; }
+      emit(run, 'agent.completed', { agent: step.agent, step: i + 1, needsInput: Boolean(result.needsInput), inputKind: result.inputKind });
       if (run.mode === 'replay') await wait(700, run.controller.signal);
     }
     run.status = 'completed';
-    emit(run, 'run.completed', { artifacts: run.artifacts.length, findings: run.findings.length });
+    emit(run, 'run.completed', { artifacts: run.artifacts.length, findings: run.findings.length, partial: run.partial,
+      missingAgents: run.missingAgents, responded: [...new Set(run.responded)], needsInput: run.needsInput, inputKinds: run.inputKinds, failures: run.failures });
   } catch (error) {
     run.status = run.controller.signal.aborted ? 'cancelled' : 'failed';
-    emit(run, `run.${run.status}`, { message: run.status === 'cancelled' ? 'Run stopped. Existing artifacts remain available.' : String(error.message || 'Agent execution failed.') });
+    emit(run, `run.${run.status}`, { message: run.status === 'cancelled' ? run.native ? 'Stopped waiting. Existing artifacts remain available; accepted remote work may continue.' : 'Run stopped. Existing artifacts remain available.' : String(error.message || 'Agent execution failed.') });
   }
 }
 
@@ -136,29 +165,57 @@ const server = createServer(async (request, response) => {
       const origin = request.headers.origin;
       if (origin && ![publicOrigin, `http://127.0.0.1:${listeningPort}`, `http://localhost:${listeningPort}`, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:4173', 'http://localhost:4173'].includes(origin)) return json(response, 403, { error: 'Origin is not allowed.' });
     }
-    if (url.pathname === '/api/config' && request.method === 'GET') return json(response, 200, { agents: connections(), liveReady: connections().every((agent) => agent.configured) });
+    if (url.pathname === '/api/config' && request.method === 'GET') {
+      const agents = connections();
+      return json(response, 200, { agents, liveReady: agents.some((agent) => agent.configured), fullLoopReady: agents.every((agent) => agent.configured),
+        liveAccessRequired: liveAccess.required, liveAuthorized: liveAccess.authorized(request) });
+    }
+    if (url.pathname === '/api/live/session' && request.method === 'POST') {
+      const body = await readBody(request), cookie = liveAccess.unlock(body.token);
+      if (!cookie) return json(response, 401, { error: 'The live demo access key was not accepted.' });
+      response.setHeader('Set-Cookie', cookie);
+      return json(response, 200, { authorized: true });
+    }
     if (url.pathname === '/api/runs' && request.method === 'POST') {
       const body = await readBody(request);
       if (!['replay', 'live'].includes(body.mode)) return json(response, 400, { error: 'Choose replay or live.' });
+      if (body.mode === 'live' && !liveAccess.authorized(request)) return json(response, 401, { error: 'Unlock the live demo before starting paid agent calls.' });
       if (body.scope && !AGENTS.some((agent) => agent.id === body.scope)) return json(response, 400, { error: 'Unknown agent.' });
-      const needed = connections().filter((agent) => !body.scope || agent.id === body.scope);
-      if (body.mode === 'live' && needed.some((agent) => !agent.configured)) return json(response, 409, { error: needed.some((agent) => agent.endpointConfigured && agent.transport === 'agentverse')
-        ? 'These Agentverse endpoints require signed messages and a reply bridge. Evaluate them with npm run eval:agents -- --live; configure app adapters before using this live runner.'
-        : 'Connect the requested agent endpoints before starting live execution.' });
+      const config = connections(), needed = config.filter((agent) => !body.scope || agent.id === body.scope);
+      const available = needed.filter((agent) => agent.configured);
+      if (body.mode === 'live' && !available.length) return json(response, 409, { error: 'No callable agents are configured. Native Agentverse agents need their address and the server’s FETCH_ASI_API key; HTTP adapters need an endpoint.' });
       if ([...runs.values()].some((run) => run.status === 'running')) return json(response, 409, { error: 'Stop the current run before starting another.' });
       for (const [id, run] of runs) if (runs.size >= 20 && run.status !== 'running' && !run.clients.size) runs.delete(id);
-      const inputArtifacts = body.scope && Array.isArray(body.inputArtifacts)
+      const inputArtifacts = (body.scope || body.mode === 'live') && Array.isArray(body.inputArtifacts)
         ? body.inputArtifacts.slice(-20).map((artifact, index) => safeArtifact(artifact, `input-${index + 1}`)).filter(Boolean) : [];
+      let videoUrl = '';
+      if (body.videoUrl) {
+        try { const video = new URL(String(body.videoUrl)); if (video.protocol !== 'https:' || video.username || video.password || video.href.length > 4096) throw new Error(); videoUrl = video.href; }
+        catch { return json(response, 400, { error: 'The review video must be a public HTTPS URL.' }); }
+      }
+      const partial = body.mode === 'live' && !body.scope && available.length < AGENTS.length;
+      const seen = new Set();
+      const steps = STEPS.map((step, i) => ({ step, i })).filter(({ step }) => {
+        if (body.scope) return step.agent === body.scope && !seen.has(step.agent) && seen.add(step.agent);
+        if (body.mode === 'replay') return true;
+        if (!available.some((agent) => agent.id === step.agent)) return false;
+        if (!partial) return true;
+        if (seen.has(step.agent)) return false; seen.add(step.agent); return true;
+      });
       const run = { id: randomUUID(), mode: body.mode, brief: String(body.brief || 'A quiet garden. Preserve the dog and bicycle while discovering a new camera angle.').slice(0, 2000), scope: body.scope || null,
-        status: 'running', events: [], clients: new Set(), artifacts: inputArtifacts, findings: [], messages: [], controller: new AbortController() };
+        status: 'running', events: [], clients: new Set(), artifacts: inputArtifacts, findings: [], messages: [], controller: new AbortController(),
+        connections: config, partial, steps, videoUrl, videoModel: String(body.videoModel || '').slice(0, 100),
+        missingAgents: body.mode === 'live' ? config.filter((agent) => !agent.configured).map((agent) => agent.id) : [],
+        native: body.mode === 'live' && available.some((agent) => agent.transport === 'agentverse'), failures: [], responded: [], needsInput: [], inputKinds: {} };
       runs.set(run.id, run);
-      json(response, 202, { id: run.id, mode: run.mode });
+      json(response, 202, { id: run.id, mode: run.mode, partial, missingAgents: run.missingAgents, total: steps.length });
       void execute(run);
       return;
     }
     const runInfo = /^\/api\/runs\/([a-f0-9-]+)$/.exec(url.pathname);
     if (runInfo && request.method === 'GET') {
       const run = runs.get(runInfo[1]);
+      if (run?.mode === 'live' && !liveAccess.authorized(request)) return json(response, 401, { error: 'Unlock the live demo to read this run.' });
       return run ? json(response, 200, { id: run.id, mode: run.mode, status: run.status, lastEventId: run.events.length })
         : json(response, 404, { error: 'Run not found.' });
     }
@@ -166,6 +223,7 @@ const server = createServer(async (request, response) => {
     if (stream && request.method === 'GET') {
       const run = runs.get(stream[1]);
       if (!run) return json(response, 404, { error: 'Run not found.' });
+      if (run.mode === 'live' && !liveAccess.authorized(request)) return json(response, 401, { error: 'Unlock the live demo to read this run.' });
       response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
       response.write(': connected\n\n');
       const lastId = Number(request.headers['last-event-id'] || 0);
@@ -179,6 +237,7 @@ const server = createServer(async (request, response) => {
     if (stop && request.method === 'POST') {
       const run = runs.get(stop[1]);
       if (!run) return json(response, 404, { error: 'Run not found.' });
+      if (run.mode === 'live' && !liveAccess.authorized(request)) return json(response, 401, { error: 'Unlock the live demo to stop this run.' });
       run.controller.abort(new Error('Stopped by the user.'));
       return json(response, 200, { ok: true });
     }

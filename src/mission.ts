@@ -6,7 +6,7 @@ import type { createWorldViewer } from './world-viewer.ts';
 
 type AgentId = 'ebert' | 'spielberg' | 'lucas' | 'bohr';
 type RunEvent = { id: number; type: string; at: string; runId: string; agent?: AgentId; to?: AgentId | null; text?: string; message?: string; step?: number; title?: string; [key: string]: unknown };
-type Connection = { id: AgentId; name: string; role: string; color: string; address: string; configured: boolean; endpointConfigured?: boolean; transport?: 'agentverse' | 'adapter' };
+type Connection = { id: AgentId; name: string; role: string; color: string; address: string; configured: boolean; endpointConfigured?: boolean; transport?: 'agentverse' | 'adapter'; reason?: string | null };
 
 export function createMission() {
   let config: Connection[] = [];
@@ -16,7 +16,7 @@ export function createMission() {
   let starting = false;
   let disposed = false;
   let selectedAgent: AgentId = 'spielberg';
-  let mode: 'replay' | 'live' = 'replay';
+  let mode: 'replay' | 'live' = new URLSearchParams(location.search).get('mode') === 'live' ? 'live' : 'replay';
   let startedAt = 0;
   let clock: number | null = null;
   let follow = true;
@@ -28,6 +28,7 @@ export function createMission() {
   let worldManifest = '';
   let pendingWorld: Artifact | undefined;
   let currentArtifact: Artifact | undefined;
+  let liveAccessRequired = false, liveAuthorized = false, pendingScope: AgentId | undefined;
   const received = new Set<number>();
   const statuses = new Map<string, string>();
   const agentName = (id?: string | null) => AGENTS.find((agent) => agent.id === id)?.name || 'DARKMATTER';
@@ -38,8 +39,12 @@ export function createMission() {
   const runLabel = h('span.mc-run-label', 'NO RUN');
   const modeSelect = h('select', { 'aria-label': 'Execution mode', onchange: () => { mode = modeSelect.value as typeof mode; paintControls(); } },
     h('option', { value: 'replay' }, 'Recorded replay'), h('option', { value: 'live' }, 'Live agents'));
+  modeSelect.value = mode;
   const brief = h('textarea', { rows: 2, maxLength: 2000, 'aria-label': 'Creative brief' }, 'Corgaroo in a quiet garden. Preserve the corgi and red bicycle. Move beyond the opening frame and earn a new camera angle.');
-  const start = h('button.mc-start', { type: 'button', disabled: true, onclick: () => void startRun() }, '▶ Run the collaboration');
+  const videoUrl = h('input', { type: 'url', maxLength: 4096, placeholder: 'https://your-public-host/take.mp4', 'aria-label': 'Video URL for Ebert' });
+  const videoGroup = h('div.mc-video-input', { hidden: true }, h('label', h('span', 'VIDEO FOR EBERT / OPTIONAL'), videoUrl),
+    h('p', 'Supply a public video for an actual critique. Without one, Ebert can only return input instructions. Live calls may use provider credits.'));
+  const start = h('button.mc-start', { type: 'button', disabled: true, onclick: () => requestStart() }, '▶ Run the collaboration');
   const stop = h('button.mc-stop', { type: 'button', disabled: true, onclick: () => void cancelRun() }, '■ Stop');
   const reset = h('button.mc-minor', { type: 'button', onclick: () => resetRun() }, 'Reset');
   const exportButton = h('button.mc-minor', { type: 'button', disabled: true, onclick: () => exportTrace() }, '↓ Export trace');
@@ -70,17 +75,39 @@ export function createMission() {
   const reviewState = h('strong', 'Not evaluated');
   const dialog = h('dialog.mc-dialog',
     h('div.mc-dialog-head', h('h3', 'Agent connections'), h('button', { type: 'button', onclick: () => dialog.close(), 'aria-label': 'Close agent connections' }, '×')),
-    h('p', 'Each live adapter receives the brief and the artifacts, messages, and findings produced by the previous agents.'),
+    h('p', 'Each live agent receives the brief and the artifacts, messages, and findings produced by the previous agents.'),
     h('div.mc-connection-list'),
-    h('p.mc-connection-help', 'Add the four agent endpoint URLs to this project’s .env and restart npm run dev. The README documents the adapter contract.'));
+    h('p.mc-connection-help', 'Add missing agent settings on the server. The README explains native Agentverse connections and custom adapters.'));
   dialog.addEventListener('close', () => connections.focus());
+  const accessKey = h('input', { type: 'password', autocomplete: 'off', 'aria-label': 'Live demo access key' });
+  const accessError = h('p', { role: 'status' });
+  const unlock = h('button.mc-minor', { type: 'submit' }, 'Unlock and run');
+  const accessDialog = h('dialog.mc-dialog', h('h3', 'Unlock the live demo'),
+    h('p', 'Live calls use the owner’s provider credits. Enter the demo access key; API keys stay on the server.'),
+    h('form.mc-live-unlock', { onsubmit: (event: Event) => { event.preventDefault(); void unlockLive(); } },
+      h('label', 'Demo access key', accessKey), accessError, unlock,
+      h('button.mc-minor', { type: 'button', onclick: () => accessDialog.close() }, 'Cancel')));
+
+  function requestStart(scope?: AgentId) {
+    if (mode === 'live' && liveAccessRequired && !liveAuthorized) { pendingScope = scope; accessError.textContent = ''; accessDialog.showModal(); return; }
+    void startRun(scope);
+  }
+  async function unlockLive() {
+    unlock.disabled = true;
+    try {
+      const response = await fetch('/api/live/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: accessKey.value }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error);
+      liveAuthorized = true; accessDialog.close(); paintControls(); await startRun(pendingScope);
+    } catch (error) { accessError.textContent = error instanceof Error ? error.message : 'Could not unlock live calls.'; }
+    finally { accessKey.value = ''; unlock.disabled = false; }
+  }
 
   function selectView(next: typeof view) {
     view = next; viewport.hidden = next === 'world'; worldMount.hidden = next !== 'world';
     artifactTab.setAttribute('aria-pressed', String(next === 'artifact')); worldTab.setAttribute('aria-pressed', String(next === 'world'));
     world?.setActive(next === 'world');
     artifactTitle.textContent = next === 'world' ? 'Corgaroo’s explorable world' : currentArtifact?.title || 'The starting scene';
-    artifactBy.textContent = next === 'world' ? 'Native 3D · five saved scene layers' : currentArtifact?.agent ? `${agentName(currentArtifact.agent)} / ${mode === 'replay' ? 'replay artifact' : 'live output'}` : 'Corgi garden / source photograph';
+    artifactBy.textContent = next === 'world' ? 'Native 3D · five saved scene layers' : currentArtifact?.agent ? `${agentName(currentArtifact.agent)} / ${currentArtifact.provenance ? 'verified Agentverse reply' : mode === 'replay' ? 'replay artifact' : 'live output'}` : 'Corgi garden / source photograph';
     artifactCaption.textContent = next === 'world' ? 'Take the camera yourself. Manual movement pauses agent camera changes. Save a shot or add your angle to Spielberg’s context.' : currentArtifact?.caption || '';
   }
 
@@ -163,7 +190,7 @@ export function createMission() {
     const state = h('span.mc-agent-state', 'Waiting');
     const button = h('button.mc-agent-select', { type: 'button', 'aria-pressed': String(agent.id === selectedAgent), onclick: () => selectAgent(agent.id as AgentId) },
       h('span.mc-agent-avatar', agent.name.slice(0, 1)), h('span', h('strong', agent.name), h('small', agent.role)), state);
-    const invoke = h('button.mc-agent-invoke', { type: 'button', 'aria-label': `Run ${agent.name} independently`, title: `Run ${agent.name} independently`, onclick: () => void startRun(agent.id as AgentId) }, '↗');
+    const invoke = h('button.mc-agent-invoke', { type: 'button', 'aria-label': `Run ${agent.name} independently`, title: `Run ${agent.name} independently`, onclick: () => requestStart(agent.id as AgentId) }, '↗');
     const card = h('div.mc-agent-card', { dataset: { agent: agent.id, state: 'waiting' }, style: `--agent-color:${agent.color}` }, button, invoke);
     agentsRail.append(card);
     agentCards.set(agent.id, { button, state, card, invoke });
@@ -172,20 +199,22 @@ export function createMission() {
   function paintControls() {
     const available = config.filter((agent) => agent.configured).length;
     const busy = running || starting;
-    start.disabled = busy || !config.length || (mode === 'live' && available !== AGENTS.length);
+    start.disabled = busy || !config.length || (mode === 'live' && !available);
     stop.disabled = !running;
     reset.disabled = busy;
     modeSelect.disabled = busy;
     brief.disabled = busy;
-    start.textContent = starting ? 'Starting…' : running ? 'Collaboration running…' : mode === 'live' ? '▶ Run live collaboration' : '▶ Run recorded collaboration';
+    videoUrl.disabled = busy; videoGroup.hidden = mode !== 'live';
+    stop.textContent = mode === 'live' ? '■ Stop waiting' : '■ Stop';
+    start.textContent = starting ? 'Starting…' : running ? 'Agents working…' : mode === 'live' ? `${liveAccessRequired && !liveAuthorized ? 'Unlock live' : '▶ Run live'} · ${available} ${available === 1 ? 'agent' : 'agents'}` : '▶ Run recorded collaboration';
     const native = config.filter((agent) => agent.endpointConfigured && agent.transport === 'agentverse').length;
     connections.textContent = `Connections ${config.filter((agent) => agent.endpointConfigured || agent.configured).length}/4`;
     for (const [id, card] of agentCards) card.invoke.disabled = busy || !config.length || (mode === 'live' && !config.find((agent) => agent.id === id)?.configured);
     if (!busy && !events.length && !notice.dataset.tone) notice.textContent = mode === 'replay'
       ? 'Replay: the real corgi garden with illustrative agent dialogue. Inspect it in 3D; live agents will supply new films and repairs.'
-      : available === 4 ? 'Live: each agent receives the previous agents’ actual outputs through its adapter.'
-        : native ? `Live setup: ${native} Agentverse endpoints configured; their signed-message bridge is still needed. ${available}/4 app adapters configured. See Connections.`
-          : `Live setup: ${available}/4 adapters configured. Configured agents can be called individually with ↗.`;
+      : available === 4 ? 'Live: actual agent calls, with previous outputs carried into the next request.'
+        : available ? `Live test: ${config.filter((agent) => agent.configured).map((agent) => agent.name).join(' → ')}. ${config.filter((agent) => !agent.configured).map((agent) => agent.name).join(' and ')} are not configured. This is a partial live run.`
+          : native ? 'Set FETCH_ASI_API and the Agentverse addresses in the server’s .env, then restart the service.' : 'No callable agents configured. Open Connections for setup.';
   }
 
   function setAgentState(id: string, state: string, label: string) {
@@ -199,22 +228,33 @@ export function createMission() {
     received.add(event.id);
     events.push(event);
     exportButton.disabled = false;
+    if (event.type === 'agent.skipped' && event.agent) setAgentState(event.agent, 'unavailable', 'Not configured');
     if (event.type === 'agent.started' && event.agent) {
       setAgentState(event.agent, 'working', 'Working'); selectAgent(event.agent);
       stepTitle.textContent = event.title || 'Agent working';
-      stepNumber.textContent = `${String(event.step).padStart(2, '0')} / 08`;
-      progress.style.width = `${((event.step || 1) / 8) * 100}%`;
+      const sequence = Number(event.sequence || event.step || 1), total = Number(event.total || 8);
+      stepNumber.textContent = `${String(sequence).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+      progress.style.width = `${(sequence / total) * 100}%`;
       status.textContent = `${mode === 'replay' ? 'Replay' : 'Live'} · ${agentName(event.agent)} working`;
     }
     if (event.type === 'agent.completed' && event.agent) {
-      setAgentState(event.agent, 'done', 'Delivered');
+      setAgentState(event.agent, event.needsInput ? 'needs-input' : 'done', event.needsInput ? event.inputKind === 'account' ? 'Needs account' : 'Needs video' : mode === 'live' ? 'Responded' : 'Delivered');
       status.textContent = `${mode === 'replay' ? 'Replay' : 'Live'} · ${agentName(event.agent)} delivered`;
+    }
+    if (event.type === 'agent.progress' && event.agent) {
+      status.textContent = `${agentName(event.agent)} · ${event.text || 'Awaiting reply…'}`;
+      setAgentState(event.agent, 'working', event.state === 'contacting' ? 'Contacting…' : 'Awaiting reply…');
+    }
+    if (event.type === 'agent.failed' && event.agent) {
+      setAgentState(event.agent, 'failed', event.uncertain ? 'No result received' : 'Request failed');
+      messages.append(h('article.mc-message.mc-failure', h('strong', `System / ${agentName(event.agent)}`), h('p', event.text || 'No agent result was returned.')));
     }
     if (event.type === 'message') {
       if (messages.querySelector('.mc-empty')) messages.replaceChildren();
       const route = event.to ? `${agentName(event.agent)} → ${agentName(event.to)}` : `${agentName(event.agent)} → Shared workspace`;
       messages.append(h('article.mc-message', { style: `--agent-color:${agentColor(event.agent)}` },
-        h('div', h('strong', route), h('time', new Date(event.at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }))), h('p', event.text || '')));
+        h('div', h('strong', route), h('time', new Date(event.at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }))),
+        event.provenance ? h('small.mc-verified', 'Verified Agentverse reply') : null, h('p', event.text || '')));
       if (event.to) { handoffCount.textContent = String(events.filter((item) => item.type === 'message' && item.to).length); setAgentState(event.to, 'receiving', 'Received'); }
       if (follow) messages.scrollTop = messages.scrollHeight;
     }
@@ -229,6 +269,16 @@ export function createMission() {
       if (event.type === 'run.failed') { notice.textContent = event.message || 'The agent endpoint failed.'; notice.dataset.tone = 'error'; }
       else notice.textContent = event.type === 'run.completed' ? 'The handoff circle is complete. Select an artifact to inspect what each agent contributed.' : event.message || 'Run stopped.';
       reviewState.textContent = mode === 'replay' ? 'Verification open' : 'See agent review';
+      if (mode === 'live' && event.type === 'run.completed') {
+        const responded = Array.isArray(event.responded) ? event.responded.length : 0;
+        const missing = Array.isArray(event.missingAgents) ? event.missingAgents.map((id) => agentName(String(id))) : [];
+        const failures = Array.isArray(event.failures) ? event.failures.length : 0;
+        const needsInput = Array.isArray(event.needsInput) && event.needsInput.length > 0;
+        const kinds = event.inputKinds as Record<string, string> | undefined;
+        status.textContent = `Live run finished · ${responded} ${responded === 1 ? 'agent responded' : 'agents responded'}${failures ? ` · ${failures} without a result` : ''}`;
+        notice.textContent = `${missing.length ? `Partial live run. Not configured: ${missing.join(', ')}. ` : ''}${kinds?.ebert === 'video' ? 'Add a video URL for Ebert to critique. ' : ''}${Object.values(kinds || {}).includes('account') ? 'AI3D account setup is still needed. ' : ''}Review the actual replies and artifacts before continuing; this run does not establish a verified repair.`;
+        reviewState.textContent = failures ? 'Incomplete' : needsInput ? 'Input needed' : 'Review outputs';
+      }
       for (const [id, state] of statuses) if (['working', 'receiving'].includes(state)) {
         setAgentState(id, event.type === 'run.completed' ? 'done' : 'waiting', event.type === 'run.completed' ? 'Context retained' : 'Stopped');
       }
@@ -238,14 +288,17 @@ export function createMission() {
 
   async function startRun(scope?: AgentId) {
     if (running || starting) return;
-    const inputArtifacts: Artifact[] = scope ? artifacts.length ? [...artifacts] : [{ id: 'starting-scene', kind: 'image', title: 'Starting scene / input', url: MEDIA.opening, caption: 'Input context for this independent invocation.' }] : [];
+    const seed: Artifact[] = [{ id: 'starting-scene', kind: 'image', title: 'Corgaroo / source photograph', url: MEDIA.opening },
+      { id: 'starting-world', kind: 'world', title: 'Corgaroo / existing world', url: '/worlds/corgi/scene.json', viewer: 'splat' }];
+    const inputArtifacts: Artifact[] = scope || mode === 'live' ? artifacts.length ? [...artifacts] : seed : [];
     resetRun();
     starting = true;
     notice.dataset.tone = '';
     paintControls();
     try {
-      const response = await fetch('/api/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, brief: brief.value, scope, inputArtifacts }) });
+      const response = await fetch('/api/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, brief: brief.value, scope, inputArtifacts, videoUrl: mode === 'live' ? videoUrl.value.trim() : undefined }) });
       const body = await response.json();
+      if (response.status === 401) liveAuthorized = false;
       if (!response.ok) throw new Error(body.error || 'Could not start the run.');
       if (disposed) return;
       runId = body.id; running = true; startedAt = Date.now();
@@ -300,7 +353,7 @@ export function createMission() {
 
   function showConnections() {
     dialog.querySelector('.mc-connection-list')!.replaceChildren(...config.map((agent) => h('div',
-      h('strong', agent.name), h('span', agent.transport === 'agentverse' && agent.endpointConfigured ? 'Agentverse · bridge needed' : agent.configured ? 'Adapter configured' : 'Not configured'), h('small', agent.address || 'Agentverse address pending'))));
+      h('strong', agent.name), h('span', agent.configured ? agent.transport === 'agentverse' ? 'Agentverse ready to call' : 'Adapter configured' : agent.reason || 'Not configured'), h('small', agent.address || 'Agentverse address pending'))));
     dialog.showModal();
   }
 
@@ -314,7 +367,7 @@ export function createMission() {
   const element = h('div.mc-workspace',
     h('div.mc-topbar', h('div', h('span.mc-dot'), status), h('div', runLabel, elapsed, connections)),
     h('div.mc-brief', h('label', h('span', 'CREATIVE BRIEF / GARDEN–01'), brief), h('div', modeSelect, start, stop)),
-    notice,
+    videoGroup, notice,
     agentsRail,
     h('p.mc-agent-summary', h('span', 'SELECTED AGENT'), selectedSummary),
     h('div.mc-stage-head', stepNumber, stepTitle, h('div.mc-step-progress', progress)),
@@ -322,10 +375,11 @@ export function createMission() {
       h('section.mc-artifact', { 'aria-label': 'Shared artifact' }, h('div.mc-artifact-head', h('div', artifactTitle, artifactBy), h('span', 'SHARED ARTIFACT')), h('div.mc-view-tabs', artifactTab, worldTab), viewport, worldMount, artifactCaption),
       h('section.mc-transcript', { 'aria-label': 'Collaboration transcript' }, h('div.mc-transcript-head', h('strong', 'Agent → Agent'), followButton), messages)),
     h('div.mc-bottom', h('div.mc-counters', h('div', artifactCount, h('span', 'Artifacts')), h('div', handoffCount, h('span', 'Handoffs')), h('div', findingCount, h('span', 'Findings')), h('div', reviewState, h('span', 'Quality gate'))), h('div', reset, exportButton)),
-    artifactStrip, dialog);
+    artifactStrip, dialog, accessDialog);
   resetRun();
-  void fetch('/api/config').then(async (response) => { if (!response.ok) throw new Error(); const body = await response.json(); if (disposed) return; config = body.agents; status.textContent = 'Ready to collaborate'; paintControls(); })
+  void fetch('/api/config').then(async (response) => { if (!response.ok) throw new Error(); const body = await response.json(); if (disposed) return; config = body.agents;
+    liveAccessRequired = Boolean(body.liveAccessRequired); liveAuthorized = Boolean(body.liveAuthorized); status.textContent = 'Ready to collaborate'; paintControls(); })
     .catch(() => { if (!disposed) { status.textContent = 'Event service unavailable'; notice.textContent = 'Start both the app and event service with npm run dev from the darkmatter directory.'; notice.dataset.tone = 'error'; } });
 
-  return { element, selectAgent, exploreWorld, dispose: () => { disposed = true; stream?.close(); world?.dispose(); if (clock !== null) window.clearInterval(clock); dialog.close(); } };
+  return { element, selectAgent, exploreWorld, dispose: () => { disposed = true; stream?.close(); world?.dispose(); if (clock !== null) window.clearInterval(clock); dialog.close(); accessDialog.close(); } };
 }
